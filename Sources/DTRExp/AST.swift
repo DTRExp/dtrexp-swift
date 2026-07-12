@@ -58,7 +58,6 @@ enum CadenceUnit: Character, Sendable {
     case minute = "m"
 
     var isMonthOrYear: Bool { self == .year || self == .month }
-    var isSubDaily: Bool { self == .hour || self == .minute }
 }
 
 struct Cadence: Equatable, Sendable {

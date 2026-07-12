@@ -80,15 +80,13 @@ struct Parser {
         var branches: [Expression] = []
         while true {
             skipSpaces()
-            let expr = try parseExpression()
-            branches.append(expr)
+            branches.append(try parseExpression())
             skipSpaces()
+            // parseExpression consumes a whole branch, stopping only at end of
+            // input or a '|' separator — any other character is rejected inside
+            // parseComponent — so the position here is always one or the other.
             if atEnd { break }
-            if peek() == "|" {
-                advance()
-                continue
-            }
-            throw ParseError("unexpected character '\(peek()!)'", at: pos)
+            advance()  // consume the '|' and parse the next branch
         }
         return branches
     }
@@ -374,21 +372,19 @@ struct Parser {
 
     private mutating func parseItem(_ d: Designator) throws(ParseError) -> Item {
         let start = pos
-        var startPoint: Endpoint
+        let startPoint: Endpoint
         if peek() == "*" {
             guard peek(1) == ":" else {
                 throw ParseError("bare '*' in a list — a list containing the whole domain is the whole domain", at: start)
             }
-            advance()
+            advance()  // now positioned at the ':' checked via peek(1)
             startPoint = .star
         } else {
-            startPoint = .value(try readSignedInt("value"))
+            let v = try readSignedInt("value")
+            guard peek() == ":" else { return .single(v) }
+            startPoint = .value(v)
         }
-        guard peek() == ":" else {
-            if case .value(let v) = startPoint { return .single(v) }
-            throw ParseError("expected ':' after '*'", at: pos)
-        }
-        advance()
+        advance()  // consume the ':' (guaranteed present in both branches)
         let endPoint: Endpoint
         if peek() == "*" {
             advance()
@@ -618,9 +614,6 @@ struct Parser {
         case .stride(let start, let end, let interval, _):
             try check(start)
             if let end { try checkEndpoint(end) }
-            if let end, case .value(let ev) = end, ev >= 0, ev < start {
-                throw ParseError("wrap ranges take no stride")
-            }
             if let limits, interval > limits.count {
                 throw ParseError("stride interval \(interval) exceeds the parent domain (max \(limits.count)) — use a cadence")
             }

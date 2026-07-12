@@ -123,12 +123,10 @@ private func branchWarnings(_ expr: Expression) -> [Warning] {
                     sizes = [28, 29, 30, 31]
                 }
             case .quarter:
-                if let quarterSet {
-                    if quarterSet.isEmpty { continue }
-                    sizes = quarterSet.reduce(into: Set<Int>()) { $0.formUnion(quarterLengths($1)) }
-                } else {
-                    sizes = [90, 91, 92]
-                }
+                // D with quarter scope only arises when a Q selector is present
+                // (assemble picks the scope), so quarterSet is always populated.
+                guard let quarterSet, !quarterSet.isEmpty else { continue }
+                sizes = quarterSet.reduce(into: Set<Int>()) { $0.formUnion(quarterLengths($1)) }
             case .year:
                 // with W present, Y is the week-year while day-of-year stays
                 // calendar (spec §2) — cross-selector territory, stays quiet (§9.1)

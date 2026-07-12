@@ -174,14 +174,16 @@ func selectorMatches(_ sel: Selector, expr: Expression, fields f: Fields) -> Boo
 
 // MARK: - Cadence
 
-private func fixedDurationMs(_ value: Int, _ unit: CadenceUnit) -> Int {
+func fixedDurationMs(_ value: Int, _ unit: CadenceUnit) -> Int {
+    let msPerUnit: Int
     switch unit {
-    case .day: return value * msPerDay
-    case .week: return value * msPerWeek
-    case .hour: return value * msPerHour
-    case .minute: return value * msPerMinute
+    case .day: msPerUnit = msPerDay
+    case .week: msPerUnit = msPerWeek
+    case .hour: msPerUnit = msPerHour
+    case .minute: msPerUnit = msPerMinute
     case .month, .year: preconditionFailure("month/year durations are handled by constrain arithmetic")
     }
+    return value * msPerUnit
 }
 
 func cadenceCovers(_ c: Cadence, fields f: Fields, timeZone: TimeZone) -> Bool {
