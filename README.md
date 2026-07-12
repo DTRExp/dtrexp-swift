@@ -32,16 +32,16 @@ Swift 6.0+, Foundation only (`TimeZone` and `Date` for IANA zones and instants).
 ```swift
 import DTRExp
 
-let expr = try DTRExp("T0900:1800 E1:5")    // business hours, Mon–Fri
+let dtr = try DTRExp("T0900:1800 E1:5")    // business hours, Mon–Fri
 
 let berlin = TimeZone(identifier: "Europe/Berlin")!
-expr.covers(Date(), timeZone: berlin)
+dtr.covers(Date(), timeZone: berlin)
 // —> true on a weekday, 09:00–18:00 Berlin local time
 // The zone is an evaluation parameter, never part of the expression;
 // omit it and evaluation is in UTC.
 
 // By IANA name; throws on an unknown identifier:
-let ok = try expr.covers(Date(), tz: "Europe/Berlin")
+let ok = try dtr.covers(Date(), tz: "Europe/Berlin")
 ```
 
 `DTRExp("…")` and the equivalent static `DTRExp.parse("…")` both parse; `parse` is the fixed cross-language name for what the initializer does natively.
@@ -66,7 +66,7 @@ result.warnings                        // [Warning] — no February has 30 days
 
 - `DTRExp(_:)` and `DTRExp.parse(_:)` return the parsed value or throw a `ParseError` (*message* `String`, *position* `Int?`). Both are typed as `throws(ParseError)`.
 - `DTRExp.validate(_:)` never throws; typo-shaped input comes back as data. Returns a `ValidationResult` with *valid* `Bool`, *errors* `[ParseError]` (parsing stops at the first syntax error, so at most one) and *warnings* `[Warning]`.
-- Warnings are the spec's §9.1 unsatisfiability lint — expressions that parse but can never match. The parsed value's `warnings` property and `validate(_:).warnings` carry the same content.
+- Warnings are the spec's [§9.1](https://github.com/DTRExp/dtrexp/blob/main/spec.md#91-the-existence-rule) unsatisfiability lint — expressions that parse but can never match. The parsed value's `warnings` property and `validate(_:).warnings` carry the same content.
 - `covers(_:tz:)` throws an `EvaluationError` for an unknown IANA identifier. The zone-typed `covers(_:timeZone:)` cannot fail.
 
 ## Conformance & quality
@@ -78,6 +78,7 @@ result.warnings                        // [Warning] — no February has 30 days
 
 - [**dtrexp** (spec)][spec] — the DTRExp specification (grammar, semantics, conformance vectors) this package implements.
 - [**dtrexp-js**][js] — the reference implementation; adds `intersect`, `next`, `describe`, `toRRule` and canonicalization.
+- [**dtrexp-py**][py] · [**dtrexp-go**][go] · [**dtrexp-rs**][rs] · [**dtrexp-java**][java] — the other ports; same core interface.
 
 ## License
 
@@ -85,5 +86,9 @@ result.warnings                        // [Warning] — no February has 30 days
 
 [spec]: https://github.com/DTRExp/dtrexp
 [js]: https://github.com/DTRExp/dtrexp-js
+[py]: https://github.com/DTRExp/dtrexp-py
+[go]: https://github.com/DTRExp/dtrexp-go
+[rs]: https://github.com/DTRExp/dtrexp-rs
+[java]: https://github.com/DTRExp/dtrexp-java
 [vectors]: https://github.com/DTRExp/dtrexp/blob/main/vectors.json
 [vectors-md]: https://github.com/DTRExp/dtrexp/blob/main/VECTORS.md
