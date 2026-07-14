@@ -72,6 +72,7 @@ result.warnings                        // [Warning] — no February has 30 days
 ## Conformance & quality
 
 - The test suite is driven by the shared [`vectors.json`][vectors] from the spec repo (draft 2.8), vendored at `Tests/DTRExpTests/Resources/vectors.json` — every coverage, rejection, warning and quiet vector, including the calendar traps (Feb 29 across 2000/2024/**2100**, `W53` existence, DST gap/overlap in `Europe/Berlin`). Run the suite with `swift test`. See [VECTORS.md][vectors-md] for how the vectors are structured.
+- 100% line coverage, and mutation-tested by a scripted exit-code harness — Swift's standard tool ([muter][muter]) is unmaintained and cannot rewrite current Swift or read a Swift Testing suite, so the pass applies the classic mutant classes itself and treats any nonzero `swift test` exit as a kill, framework-free. Tally, commands and per-survivor equivalence proofs: [TESTING.md](TESTING.md).
 - Zero dependencies.
 
 ## Related projects
@@ -90,5 +91,6 @@ result.warnings                        // [Warning] — no February has 30 days
 [go]: https://github.com/DTRExp/dtrexp-go
 [rs]: https://github.com/DTRExp/dtrexp-rs
 [java]: https://github.com/DTRExp/dtrexp-java
+[muter]: https://github.com/muter-mutation-testing/muter
 [vectors]: https://github.com/DTRExp/dtrexp/blob/main/vectors.json
 [vectors-md]: https://github.com/DTRExp/dtrexp/blob/main/VECTORS.md

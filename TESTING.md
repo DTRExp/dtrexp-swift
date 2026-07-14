@@ -1,6 +1,6 @@
 # Testing
 
-The package is tested at three levels: the conformance vectors (`Tests/DTRExpTests/Resources/vectors.json`, the behavioral contract shared across every DTRExp implementation), unit tests for everything the vectors don't reach (evaluation errors, quarter-scoped ordinals, exclusion lists, parser rejections, and the arithmetic helpers), and a manual mutation pass over the parser and evaluator boundary logic.
+The package is tested at three levels: the conformance vectors (`Tests/DTRExpTests/Resources/vectors.json`, the behavioral contract shared across every DTRExp implementation), unit tests for everything the vectors don't reach (evaluation errors, quarter-scoped ordinals, exclusion lists, parser rejections, and the arithmetic helpers), and a scripted mutation pass over the parser and evaluator boundary logic, with a published record.
 
 ## Commands
 
@@ -36,7 +36,9 @@ The vendored conformance vectors pass untouched.
 
 ## Mutation testing
 
-Swift has no maintained mutation-testing tool (muter is unreliable on Swift 6), so the pass is manual and disciplined: for each source file, apply the standard mutant classes one at a time — flip every comparison operator (`<`↔`<=`, `>`↔`>=`, `==`↔`!=`), swap `&&`↔`||`, negate index/boundary arithmetic, and nudge the integer literals in comparisons — run `swift test`, record kill or survive, and restore. The pass is exhaustive over the parser's validation boundaries and the evaluator's inclusivity logic (the arms where an off-by-one is a real coverage bug), and samples the plumbing.
+Swift has no maintained mutation-testing tool. [muter](https://github.com/muter-mutation-testing/muter) is the one the ecosystem standardized on, and it is out of the running twice over: its last release (v16, September 2023) predates today's toolchains — run against this package under Swift 6.3 its source rewriting emits corrupted mutants (mangled operators and identifiers) and aborts before testing a single one (verified 2026-07-14) — and it detects kills by parsing XCTest output, so it cannot read a Swift Testing suite at all.
+
+The pass here is scripted instead, and stronger for it: a driver applies spec'd mutants one at a time — the standard classes: flip every comparison operator (`<`↔`<=`, `>`↔`>=`, `==`↔`!=`), swap `&&`↔`||`, negate index/boundary arithmetic, nudge the integer literals in comparisons — runs `swift test`, and reads the **process exit code** (a failed expectation or a compile error is a kill), which is framework-agnostic by construction. Every mutant, edit, and outcome is recorded. The pass is exhaustive over the parser's validation boundaries and the evaluator's inclusivity logic (the arms where an off-by-one is a real coverage bug), and samples the plumbing.
 
 Latest run: **149 mutants — 136 killed, 13 survivors, all equivalent and justified below.** Every killable survivor found in the first pass got a real behavioral test and now dies; what remains is behaviorally indistinguishable from the original.
 
