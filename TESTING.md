@@ -22,7 +22,7 @@ xcrun llvm-cov report \
 
 To list any uncovered lines in a file, swap `report` for `show --show-line-counts` and grep for zero-count lines.
 
-## Coverage: 100% of lines
+## Coverage: 100% of Lines
 
 Every executable line in `Sources/DTRExp` is exercised; `llvm-cov show` reports no zero-count source line in any of the six files.
 
@@ -34,7 +34,7 @@ A few things worth noting about how that 100% is reached:
 
 The vendored conformance vectors pass untouched.
 
-## Mutation testing
+## Mutation Testing
 
 Swift has no maintained mutation-testing tool. [muter](https://github.com/muter-mutation-testing/muter) is the one the ecosystem standardized on, and it is out of the running twice over: its last release (v16, September 2023) predates today's toolchains, and under Swift 6.3 its source rewriting emits corrupted mutants (mangled operators and identifiers) and aborts before testing a single one (verified 2026-07-14); and it detects kills by parsing XCTest output, so it cannot read a Swift Testing suite at all.
 
@@ -42,7 +42,7 @@ The pass here is scripted instead, and stronger for it: a driver applies spec'd 
 
 Latest run: **149 mutants: 136 killed, 13 survivors, all equivalent and justified below.** Every killable survivor found in the first pass got a real behavioral test and now dies; what remains is behaviorally indistinguishable from the original.
 
-### Equivalent survivors (13)
+### Equivalent Survivors (13)
 
 Each is a mutant no test can distinguish, because the mutated comparison only differs on inputs the parser already excludes, or on iterations/branches that provably never run.
 
