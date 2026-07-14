@@ -9,7 +9,7 @@ E7#-1 M4                 last Sunday of April, every year
 M!7                      every month except July
 ```
 
-Scope: **parsing, validation and coverage evaluation** — the spec's core interface. Rendering, description and RRULE export are out of scope; the [reference implementation][js] has them.
+Scope: **parsing, validation and coverage evaluation** (the spec's core interface). Rendering, description and RRULE export are out of scope; the [reference implementation][js] has them.
 
 ## Install
 
@@ -46,7 +46,7 @@ let ok = try dtr.covers(Date(), tz: "Europe/Berlin")
 
 `DTRExp("…")` and the equivalent static `DTRExp.parse("…")` both parse; `parse` is the fixed cross-language name for what the initializer does natively.
 
-Note that you parse **once** (at write/config time) and evaluate **many**; a `DTRExp` value is an immutable `struct`, `Sendable`, and safe to share across concurrent evaluations. `covers` is a single calendar-field extraction followed by integer comparisons — no occurrence iteration.
+Note that you parse **once** (at write/config time) and evaluate **many**; a `DTRExp` value is an immutable `struct`, `Sendable`, and safe to share across concurrent evaluations. `covers` is a single calendar-field extraction followed by integer comparisons; no occurrence iteration.
 
 ## Errors and warnings
 
@@ -66,13 +66,13 @@ result.warnings                        // [Warning] — no February has 30 days
 
 - `DTRExp(_:)` and `DTRExp.parse(_:)` return the parsed value or throw a `ParseError` (*message* `String`, *position* `Int?`). Both are typed as `throws(ParseError)`.
 - `DTRExp.validate(_:)` never throws; typo-shaped input comes back as data. Returns a `ValidationResult` with *valid* `Bool`, *errors* `[ParseError]` (parsing stops at the first syntax error, so at most one) and *warnings* `[Warning]`.
-- Warnings are the spec's [§9.1](https://github.com/DTRExp/dtrexp/blob/main/spec.md#91-the-existence-rule) unsatisfiability lint — expressions that parse but can never match. The parsed value's `warnings` property and `validate(_:).warnings` carry the same content.
+- Warnings are the spec's [§9.1](https://github.com/DTRExp/dtrexp/blob/main/spec.md#91-the-existence-rule) unsatisfiability lint: expressions that parse but can never match. The parsed value's `warnings` property and `validate(_:).warnings` carry the same content.
 - `covers(_:tz:)` throws an `EvaluationError` for an unknown IANA identifier. The zone-typed `covers(_:timeZone:)` cannot fail.
 
 ## Conformance & quality
 
-- The test suite is driven by the shared [`vectors.json`][vectors] from the spec repo (draft 2.8), vendored at `Tests/DTRExpTests/Resources/vectors.json` — every coverage, rejection, warning and quiet vector, including the calendar traps (Feb 29 across 2000/2024/**2100**, `W53` existence, DST gap/overlap in `Europe/Berlin`). Run the suite with `swift test`. See [VECTORS.md][vectors-md] for how the vectors are structured.
-- 100% line coverage, and mutation-tested by a scripted exit-code harness — Swift's standard tool ([muter][muter]) is unmaintained and cannot rewrite current Swift or read a Swift Testing suite, so the pass applies the classic mutant classes itself and treats any nonzero `swift test` exit as a kill, framework-free. Tally, commands and per-survivor equivalence proofs: [TESTING.md](TESTING.md).
+- The test suite is driven by the shared [`vectors.json`][vectors] from the spec repo (draft 2.8), vendored at `Tests/DTRExpTests/Resources/vectors.json`: every coverage, rejection, warning and quiet vector, including the calendar traps (Feb 29 across 2000/2024/**2100**, `W53` existence, DST gap/overlap in `Europe/Berlin`). Run the suite with `swift test`. See [VECTORS.md][vectors-md] for how the vectors are structured.
+- 100% line coverage, and mutation-tested by a scripted exit-code harness; Swift's standard tool ([muter][muter]) is unmaintained and cannot rewrite current Swift or read a Swift Testing suite, so the pass applies the classic mutant classes itself and treats any nonzero `swift test` exit as a kill, framework-free. Tally, commands and per-survivor equivalence proofs: [TESTING.md](TESTING.md).
 - Zero dependencies.
 
 ## Related projects
