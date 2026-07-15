@@ -82,6 +82,7 @@ result.warnings                        // [Warning] — no February has 30 days
 - [**dtrexp** (spec)][spec] — the DTRExp specification (grammar, semantics, conformance vectors) this package implements.
 - [**dtrexp-js**][js] — the reference implementation; adds `intersect`, `next`, `describe`, `toRRule` and canonicalization.
 - [**dtrexp-py**][py] · [**dtrexp-go**][go] · [**dtrexp-rs**][rs] · [**dtrexp-java**][java] — the other ports; same core interface.
+- [**dtrexp-wasm**][wasm] — the Rust core compiled to WebAssembly for JS hosts.
 
 ## License
 
@@ -96,3 +97,4 @@ result.warnings                        // [Warning] — no February has 30 days
 [muter]: https://github.com/muter-mutation-testing/muter
 [vectors]: https://github.com/DTRExp/dtrexp/blob/main/vectors.json
 [vectors-md]: https://github.com/DTRExp/dtrexp/blob/main/VECTORS.md
+[wasm]: https://github.com/DTRExp/dtrexp-wasm
