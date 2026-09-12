@@ -1,7 +1,7 @@
 import Foundation
 
 /// A parsed DTRExp — a compact date-time range & recurrence expression
-/// (spec draft 2.8), evaluated for **coverage**: "is this instant inside the
+/// (spec draft 2.9), evaluated for **coverage**: "is this instant inside the
 /// denoted set of intervals?"
 ///
 /// ```swift
