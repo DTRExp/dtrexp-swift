@@ -4,3 +4,6 @@
 DerivedData/
 xcuserdata/
 _notes/
+
+# Scratch and the latest test reports (coverage, mutation), never committed
+_backup/
