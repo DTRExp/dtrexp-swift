@@ -11,6 +11,34 @@ SRC = os.path.join(ROOT, "Sources/DTRExp")
 # old_substring MUST occur exactly once in the file.
 MUTANTS = json.load(open(sys.argv[1]))
 
+
+def preflight():
+    """Every mutant checked before a single build: its file is there, `old`
+    occurs exactly once and `new` differs — so a spec typo costs a second
+    rather than the whole pass. `--dry-run` stops here."""
+    problems = []
+    for mid, f, old, new in (m[:4] for m in MUTANTS):
+        path = os.path.join(SRC, f)
+        if not os.path.exists(path):
+            problems.append(f"{mid}: no file {f}")
+            continue
+        count = open(path).read().count(old)
+        if count != 1:
+            problems.append(f"{mid}: {f} holds {count} copies of {old!r}, want exactly 1")
+        if old == new:
+            problems.append(f"{mid}: new is the same as old")
+    if problems:
+        print(f"PREFLIGHT FAILED — {len(problems)} problem(s):")
+        for problem in problems:
+            print(f"  {problem}")
+        sys.exit(1)
+    print(f"preflight ok — {len(MUTANTS)} mutants over {len({m[1] for m in MUTANTS})} files")
+    if "--dry-run" in sys.argv[2:]:
+        sys.exit(0)
+
+
+preflight()
+
 # Snapshot originals
 files = sorted({m[1] for m in MUTANTS})
 orig = {f: open(os.path.join(SRC, f)).read() for f in files}
@@ -42,7 +70,7 @@ if not ok:
 print("baseline green\n")
 
 results = []
-for mid, f, old, new in MUTANTS:
+for mid, f, old, new in (m[:4] for m in MUTANTS):
     path = os.path.join(SRC, f)
     content = orig[f]
     cnt = content.count(old)
