@@ -1,0 +1,15 @@
+[
+["W-concyears-range<lim","Warnings.swift","guard b - a < limit else { return nil }","guard b - a <= limit else { return nil }"],
+["W-concyears-a<=b","Warnings.swift",".range(.value(let a), .value(let b), false) where a <= b:",".range(.value(let a), .value(let b), false) where a < b:"],
+["W-concyears-stride>=","Warnings.swift","let interval, let duration) where end >= start:","let interval, let duration) where end > start:"],
+["W-concyears-stridelim","Warnings.swift","guard end - start < limit else { return nil }","guard end - start <= limit else { return nil }"],
+["W-concyears-strmod","Warnings.swift","return (start...end).filter { ($0 - start) % interval < duration }","return (start...end).filter { ($0 - start) % interval <= duration }"],
+["W-quarter-idx","Warnings.swift","let reachableQuarters = Set(monthSet.map { ($0 - 1) / 3 + 1 })","let reachableQuarters = Set(monthSet.map { ($0 - 0) / 3 + 1 })"],
+["W-quarter-idx2","Warnings.swift","let reachableQuarters = Set(monthSet.map { ($0 - 1) / 3 + 1 })","let reachableQuarters = Set(monthSet.map { ($0 - 1) / 3 + 2 })"],
+["W-monthlen-feb","Warnings.swift","case 2: return [28, 29]","case 2: return [28, 30]"],
+["W-qlen-q1","Warnings.swift","case 1: return [90, 91]","case 1: return [90, 92]"],
+["W-covered-loop","Warnings.swift","for v in lo...hi where kindMatches(kind, value: v, lo: lo, hi: hi) {","for v in lo..<hi where kindMatches(kind, value: v, lo: lo, hi: hi) {"],
+["W-disjoint","Warnings.swift","if reachableQuarters.isDisjoint(with: quarterSet) {","if !reachableQuarters.isDisjoint(with: quarterSet) {"],
+["D-covers-contains","DTRExp.swift","return branches.contains { expressionCovers($0, fields: fields, timeZone: timeZone) }","return branches.allSatisfy { expressionCovers($0, fields: fields, timeZone: timeZone) }"],
+["D-validate-valid","DTRExp.swift","return ValidationResult(valid: true, errors: [], warnings: expression.warnings)","return ValidationResult(valid: false, errors: [], warnings: expression.warnings)"]
+]

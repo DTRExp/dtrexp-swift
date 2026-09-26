@@ -8,6 +8,6 @@ _notes/
 # Scratch, never committed
 _backup/
 
-# The latest test reports (coverage, mutation), never committed
+# The latest test reports, never committed; the mutation harness and specs are
 Tests/coverage/
-Tests/mutation/
+Tests/mutation/*_results.json

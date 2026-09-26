@@ -22,6 +22,14 @@ xcrun llvm-cov report \
 
 To list any uncovered lines in a file, swap `report` for `show --show-line-counts` and grep for zero-count lines.
 
+Mutation, one spec at a time:
+
+```sh
+python3 Tests/mutation/mutate.py Tests/mutation/eval_civil.json
+python3 Tests/mutation/mutate.py Tests/mutation/parser.json
+python3 Tests/mutation/mutate.py Tests/mutation/warn_top.json
+```
+
 ## Coverage: 100% of Lines
 
 Every executable line in `Sources/DTRExp` is exercised; `llvm-cov show` reports no zero-count source line in any of the six files.
@@ -40,7 +48,23 @@ Swift has no maintained mutation-testing tool. [muter](https://github.com/muter-
 
 The pass here is scripted instead, and stronger for it: a driver applies spec'd mutants one at a time, from the standard classes: flip every comparison operator (`<`↔`<=`, `>`↔`>=`, `==`↔`!=`), swap `&&`↔`||`, negate index/boundary arithmetic, nudge the integer literals in comparisons. It runs `swift test`, and reads the **process exit code** (a failed expectation or a compile error is a kill), which is framework-agnostic by construction. Every mutant, edit, and outcome is recorded. The pass is exhaustive over the parser's validation boundaries and the evaluator's inclusivity logic (the arms where an off-by-one is a real coverage bug), and samples the plumbing.
 
-Latest run: **149 mutants: 136 killed, 13 survivors, all equivalent and justified below.** Every killable survivor found in the first pass got a real behavioral test and now dies; what remains is behaviorally indistinguishable from the original.
+The harness and its specs sit in `Tests/mutation/`: `mutate.py`, and one spec per area, each a list of `[id, file, old, new]` where `old` must occur exactly once in the file. Each run writes `<spec>_results.json` beside its spec; those are reports, so they are not committed.
+
+Latest run (2026-09-26): **149 mutants: 136 killed, 13 survivors, all equivalent and justified below.** Every killable survivor found in the first pass got a real behavioral test and now dies; what remains is behaviorally indistinguishable from the original.
+
+| Spec | Files | Mutants | Killed | Equivalent |
+| --- | --- | --- | --- | --- |
+| `eval_civil.json` | `Civil`, `Evaluator` | 87 | 80 | 7 |
+| `parser.json` | `Parser` | 49 | 45 | 4 |
+| `warn_top.json` | `Warnings`, `DTRExp` | 13 | 11 | 2 |
+
+### Killable Survivors, Now Killed
+
+Each survived the first pass and is killed by a behavioral test written for it.
+
+- **Civil and Evaluator** (`BoundaryTests.swift`): `floorDiv`'s `a % b != 0` → `== 0`, `q - 1` → `q + 1`, and `floorMod`'s `r + b` → `r - b`, by the floor-arithmetic contract on negative operands; `isLeapYear`'s `y % 400 == 0` → `!= 0`, by "the last day of Feb 2000 is the 29th"; the cadence `f.month - anchor.month` → `+`, by a monthly window matching in a later month; dropping the `kEstimate - 1` iteration, by an end-of-month-anchored window found in a shorter month (`20240131/1M/2D` at 02-01); the year duration `* 12` → `* 11`, by a one-year window still covering month 12; `elapsed >= 0` → `> 0`, by the anchor instant itself being covered; `elapsed % period < duration` → `<=`, by the instant exactly at the window end being excluded.
+- **Parser** (`ParserBoundaryTests.swift`): the inclusive maxima (December; date-literal minute and second 59; time-value 23 and 59; day of month 31); month-zero rejection; an equal-length cross-unit cadence (`1W/7D` invalid); a fifteen-digit period clearing the size guard; the year domain 1…9999 (`Y1` valid, `Y0` out of domain); a stride interval equal to the domain size (`M1/12`); the full negative weekday index (`E-7`); an equal-endpoint range as a single value (`M5:5`).
+- **Warnings** (`WarningBoundaryTests.swift`): the month → quarter index (`M3 Q1`, `M6 Q2` stay quiet); the Q1 length ceiling (`D92 Q1` warns); a single-value year range enumerating one year (`Y2000:2000 W53`); a single-point year stride (`Y2000:2000/2 W53`); the half-open stride boundary (`Y2003:2004/5 W53`, only 2003 on).
 
 ### Equivalent Survivors (13)
 
@@ -62,4 +86,4 @@ Each is a mutant no test can distinguish, because the mutated comparison only di
 | `Warnings` year enumeration | `b − a < limit` → `<= limit` | The 1000-year cap only chooses enumerate-vs-fallback; across any span that large every week-year length (52, 53) and day-year length (365, 366) occurs, so the enumerated domain equals the fallback domain and the warnings are identical. |
 | `Warnings` year stride enumeration | `end − start < limit` → `<= limit` | Same reasoning for the stride span. |
 
-Full per-mutant records (IDs, exact edits, kill/survive) are kept out of the tree.
+The exact edit behind every mutant is in its spec.
