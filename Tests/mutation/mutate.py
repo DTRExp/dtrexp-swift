@@ -46,8 +46,8 @@ orig = {f: open(os.path.join(SRC, f)).read() for f in files}
 def run_bounded(command, cwd, timeout):
     """(returncode, output, timed_out). A run past `timeout` takes its whole
     process group with it — a hung mutant's test helper otherwise stays behind
-    holding the build lock, and the next run waits on it (found 2026-09-26 in
-    a harness) — and counts as a kill, as Stryker counts a timeout."""
+    holding the build lock, and the next run waits on it — and counts as a
+    kill, as Stryker counts a timeout."""
     process = subprocess.Popen(command, cwd=cwd, stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT, text=True, start_new_session=True)
     try:
