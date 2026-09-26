@@ -50,13 +50,13 @@ The pass here is scripted instead, and stronger for it: a driver applies spec'd 
 
 The harness and its specs sit in `Tests/mutation/`: `mutate.py`, and one spec per area, each a list of `[id, file, old, new]` where `old` must occur exactly once in the file. Each run writes `<spec>_results.json` beside its spec; those are reports, so they are not committed.
 
-Latest run (2026-09-26): **149 mutants: 136 killed, 13 survivors, all equivalent and justified below.** Every killable survivor found in the first pass got a real behavioral test and now dies; what remains is behaviorally indistinguishable from the original.
+Latest run (2026-09-26): **136 mutants, 136 killed.** Every killable survivor found in the first pass got a real behavioral test and now dies. The 13 that no test can distinguish from the original were proven equivalent and have left the specs and their results, so they are not scored as misses; their proofs stay below.
 
-| Spec | Files | Mutants | Killed | Equivalent |
+| Spec | Files | Mutants | Killed | Equivalents dropped |
 | --- | --- | --- | --- | --- |
-| `eval_civil.json` | `Civil`, `Evaluator` | 87 | 80 | 7 |
-| `parser.json` | `Parser` | 49 | 45 | 4 |
-| `warn_top.json` | `Warnings`, `DTRExp` | 13 | 11 | 2 |
+| `eval_civil.json` | `Civil`, `Evaluator` | 80 | 80 | 7 |
+| `parser.json` | `Parser` | 45 | 45 | 4 |
+| `warn_top.json` | `Warnings`, `DTRExp` | 11 | 11 | 2 |
 
 ### Killable Survivors, Now Killed
 
@@ -66,24 +66,24 @@ Each survived the first pass and is killed by a behavioral test written for it.
 - **Parser** (`ParserBoundaryTests.swift`): the inclusive maxima (December; date-literal minute and second 59; time-value 23 and 59; day of month 31); month-zero rejection; an equal-length cross-unit cadence (`1W/7D` invalid); a fifteen-digit period clearing the size guard; the year domain 1…9999 (`Y1` valid, `Y0` out of domain); a stride interval equal to the domain size (`M1/12`); the full negative weekday index (`E-7`); an equal-endpoint range as a single value (`M5:5`).
 - **Warnings** (`WarningBoundaryTests.swift`): the month → quarter index (`M3 Q1`, `M6 Q2` stay quiet); the Q1 length ceiling (`D92 Q1` warns); a single-value year range enumerating one year (`Y2000:2000 W53`); a single-point year stride (`Y2000:2000/2 W53`); the half-open stride boundary (`Y2003:2004/5 W53`, only 2003 on).
 
-### Equivalent Survivors (13)
+### Dropped Equivalents (13)
 
-Each is a mutant no test can distinguish, because the mutated comparison only differs on inputs the parser already excludes, or on iterations/branches that provably never run.
+Each is a mutant no test can distinguish, because the mutated comparison only differs on inputs the parser already excludes, or on iterations/branches that provably never run. A proven equivalent leaves the spec rather than being scored as a survivor; the id names the exact edit, so a change to that line brings it back for another look.
 
-| Site | Mutant | Why equivalent |
-| --- | --- | --- |
-| `Civil.floorDiv` | `(a ^ b) < 0` → `<= 0` | `a ^ b == 0` only when `a == b`; then `a % b == 0`, so the first conjunct is false and short-circuits before the second is read. |
-| `Evaluator` ordinal | `weekdayRaw < 0` → `<= 0` | An ordinal weekday is 1…7 or −7…−1; the parser rejects a zero weekday, so equality is unreachable. |
-| `Evaluator` ordinal | `ord > 0` → `>= 0` | An ordinal is 1…5 or −5…−1; the parser rejects a zero ordinal, so equality is unreachable. |
-| `Evaluator` month/year cadence | drop the `kEstimate + 1` iteration | The month estimate never underestimates the true occurrence index (a month start is `anchor.month + k·period` exactly; only the day-of-month clamp shifts the true `k`, and only downward), so `kEstimate + 1` never matches. |
-| `Evaluator` month/year cadence | widen the low bound to `kEstimate − 2` | The true `k` is `≥ kEstimate − 1`, so `kEstimate − 2` never matches, a harmless extra iteration with the same result. |
-| `Evaluator` month/year cadence | widen the high bound to `kEstimate + 2` | Same as the dropped `+1`: the high iterations are dead. |
-| `Evaluator.Fields` | `qStartMonth == 10` → `== 11` | `qStartMonth` is one of 1/4/7/10; for Q4 the else branch computes `daysFromCivil(y, 13, 1)`, and month 13 in the Howard-Hinnant formula denotes January of `y+1`, the exact value the `== 10` branch produces. |
-| `Parser` wrap detection | `start ≥ 0` → `start > 0` | A wrap needs `start > end` with `end ≥ 0`, so `start ≥ 1`; `start == 0` can never wrap and the guarded `start > end` is already false. |
-| `Parser` negative-domain check | `v < 0` → `v <= 0` | The conjunction `&& v < −count` is false at `v == 0` (`−count` is negative), so the extra `v == 0` case is rejected by the second operand anyway. |
-| `Parser` time wrap split | `s > e` → `s >= e` | Equal endpoints are rejected two lines earlier by `guard s != e`, so `s == e` never reaches this comparison. |
-| `Parser` wrap low-span | `e > 0` → `e >= 0` | At `e == 0` the mutant appends a `[0, 0)` span, which is empty and matches no instant; identical coverage. |
-| `Warnings` year enumeration | `b − a < limit` → `<= limit` | The 1000-year cap only chooses enumerate-vs-fallback; across any span that large every week-year length (52, 53) and day-year length (365, 366) occurs, so the enumerated domain equals the fallback domain and the warnings are identical. |
-| `Warnings` year stride enumeration | `end − start < limit` → `<= limit` | Same reasoning for the stride span. |
+| Id | Site | Mutant | Why equivalent |
+| --- | --- | --- | --- |
+| `CIV2-floorDiv-xor<=` | `Civil.floorDiv` | `(a ^ b) < 0` → `<= 0` | `a ^ b == 0` only when `a == b`; then `a % b == 0`, so the first conjunct is false and short-circuits before the second is read. |
+| `EV17-ord-wdraw<0<=` | `Evaluator` ordinal | `weekdayRaw < 0` → `<= 0` | An ordinal weekday is 1…7 or −7…−1; the parser rejects a zero weekday, so equality is unreachable. |
+| `EV20-ord->0>=0` | `Evaluator` ordinal | `ord > 0` → `>= 0` | An ordinal is 1…5 or −5…−1; the parser rejects a zero ordinal, so equality is unreachable. |
+| `EV34-cad-my-drop+1` | `Evaluator` month/year cadence | drop the `kEstimate + 1` iteration | The month estimate never underestimates the true occurrence index (a month start is `anchor.month + k·period` exactly; only the day-of-month clamp shifts the true `k`, and only downward), so `kEstimate + 1` never matches. |
+| `EV35-cad-my-widen-2` | `Evaluator` month/year cadence | widen the low bound to `kEstimate − 2` | The true `k` is `≥ kEstimate − 1`, so `kEstimate − 2` never matches, a harmless extra iteration with the same result. |
+| `EV36-cad-my-widen+2` | `Evaluator` month/year cadence | widen the high bound to `kEstimate + 2` | Same as the dropped `+1`: the high iterations are dead. |
+| `EV59-fields-qend-oct` | `Evaluator.Fields` | `qStartMonth == 10` → `== 11` | `qStartMonth` is one of 1/4/7/10; for Q4 the else branch computes `daysFromCivil(y, 13, 1)`, and month 13 in the Howard-Hinnant formula denotes January of `y+1`, the exact value the `== 10` branch produces. |
+| `P-wrap-sv0` | `Parser` wrap detection | `start ≥ 0` → `start > 0` | A wrap needs `start > end` with `end ≥ 0`, so `start ≥ 1`; `start == 0` can never wrap and the guarded `start > end` is already false. |
+| `P-vd-negcount-lt` | `Parser` negative-domain check | `v < 0` → `v <= 0` | The conjunction `&& v < −count` is false at `v == 0` (`−count` is negative), so the extra `v == 0` case is rejected by the second operand anyway. |
+| `P-tl-wrap` | `Parser` time wrap split | `s > e` → `s >= e` | Equal endpoints are rejected two lines earlier by `guard s != e`, so `s == e` never reaches this comparison. |
+| `P-tl-e0` | `Parser` wrap low-span | `e > 0` → `e >= 0` | At `e == 0` the mutant appends a `[0, 0)` span, which is empty and matches no instant; identical coverage. |
+| `W-concyears-range<lim` | `Warnings` year enumeration | `b − a < limit` → `<= limit` | The 1000-year cap only chooses enumerate-vs-fallback; across any span that large every week-year length (52, 53) and day-year length (365, 366) occurs, so the enumerated domain equals the fallback domain and the warnings are identical. |
+| `W-concyears-stridelim` | `Warnings` year stride enumeration | `end − start < limit` → `<= limit` | Same reasoning for the stride span. |
 
-The exact edit behind every mutant is in its spec.
+The exact edit behind each is in its spec as of 7ffbcf1, the last commit that carried it.

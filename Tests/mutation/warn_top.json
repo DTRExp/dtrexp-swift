@@ -1,8 +1,6 @@
 [
-["W-concyears-range<lim","Warnings.swift","guard b - a < limit else { return nil }","guard b - a <= limit else { return nil }"],
 ["W-concyears-a<=b","Warnings.swift",".range(.value(let a), .value(let b), false) where a <= b:",".range(.value(let a), .value(let b), false) where a < b:"],
 ["W-concyears-stride>=","Warnings.swift","let interval, let duration) where end >= start:","let interval, let duration) where end > start:"],
-["W-concyears-stridelim","Warnings.swift","guard end - start < limit else { return nil }","guard end - start <= limit else { return nil }"],
 ["W-concyears-strmod","Warnings.swift","return (start...end).filter { ($0 - start) % interval < duration }","return (start...end).filter { ($0 - start) % interval <= duration }"],
 ["W-quarter-idx","Warnings.swift","let reachableQuarters = Set(monthSet.map { ($0 - 1) / 3 + 1 })","let reachableQuarters = Set(monthSet.map { ($0 - 0) / 3 + 1 })"],
 ["W-quarter-idx2","Warnings.swift","let reachableQuarters = Set(monthSet.map { ($0 - 1) / 3 + 1 })","let reachableQuarters = Set(monthSet.map { ($0 - 1) / 3 + 2 })"],
