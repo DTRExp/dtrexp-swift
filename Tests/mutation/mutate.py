@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import subprocess, sys, os, json, time
+import subprocess, sys, os, json, time, signal
 from pathlib import Path
 
 # The repo root, from the harness's own place: Tests/mutation/mutate.py.
@@ -15,10 +15,25 @@ MUTANTS = json.load(open(sys.argv[1]))
 files = sorted({m[1] for m in MUTANTS})
 orig = {f: open(os.path.join(SRC, f)).read() for f in files}
 
+def run_bounded(command, cwd, timeout):
+    """(returncode, output, timed_out). A run past `timeout` takes its whole
+    process group with it — a hung mutant's test helper otherwise stays behind
+    holding the build lock, and the next run waits on it (found 2026-09-26 in
+    a harness) — and counts as a kill, as Stryker counts a timeout."""
+    process = subprocess.Popen(command, cwd=cwd, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT, text=True, start_new_session=True)
+    try:
+        output, _ = process.communicate(timeout=timeout)
+        return process.returncode, output or "", False
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        output, _ = process.communicate()
+        return 124, (output or "") + "\nTIMED OUT", True
+
+
 def run_tests():
-    r = subprocess.run(["swift", "test"], cwd=ROOT,
-                       capture_output=True, text=True, timeout=300)
-    return r.returncode == 0, r.stdout + r.stderr
+    code, output, _ = run_bounded(["swift", "test"], ROOT, 300)
+    return code == 0, output
 
 # Baseline
 ok, _ = run_tests()
