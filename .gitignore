@@ -11,3 +11,4 @@ _backup/
 # The latest test reports, never committed; the mutation harness and specs are
 Tests/coverage/
 Tests/mutation/*_results.json
+__pycache__/
