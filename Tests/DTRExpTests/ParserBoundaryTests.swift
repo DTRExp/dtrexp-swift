@@ -14,6 +14,12 @@ struct ParserBoundaryTests {
 
     // Date-literal calendar bounds.
 
+    @Test("a cadence cut off after its period names the missing unit")
+    func cadenceWithoutUnit() {
+        #expect(message("20200101/2") == "unknown cadence unit ''")
+        #expect(message("20200101/2X") == "unknown cadence unit 'X'")
+    }
+
     @Test("December date literals are accepted")
     func decemberDate() { #expect(valid("20241225")) }
 

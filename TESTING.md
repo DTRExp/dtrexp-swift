@@ -13,12 +13,14 @@ Coverage report, per source file:
 
 ```sh
 swift test --enable-code-coverage
-BIN=.build/debug
+BIN=$(swift build --show-bin-path)
 xcrun llvm-cov report \
-  "$BIN/dtrexp-swiftPackageTests.xctest/Contents/MacOS/dtrexp-swiftPackageTests" \
+  "$BIN/DTRExpTests.xctest/Contents/MacOS/DTRExpTests" \
   -instr-profile "$BIN/codecov/default.profdata" \
   -ignore-filename-regex 'Tests/|DerivedSources|\.derived'
 ```
+
+The bin path comes from SwiftPM rather than a fixed folder, since the layout under `.build` changes between toolchains (`.build/debug` before Swift 6.4, `.build/out/Products/Debug` since).
 
 To list any uncovered lines in a file, swap `report` for `show --show-line-counts` and grep for zero-count lines.
 
@@ -37,8 +39,9 @@ Every executable line in `Sources/DTRExp` is exercised; `llvm-cov show` reports 
 
 A few things worth noting about how that 100% is reached:
 
-- `fixedDurationMs` traps on a month or year unit, which the two callers never pass (constrained-anchor arithmetic handles those). The trap is pinned by a Swift Testing exit test, which runs in a subprocess; its coverage merges back into the profile.
+- `fixedDurationMs` traps on a month or year unit, which the two callers never pass (constrained-anchor arithmetic handles those). The trap is pinned by a Swift Testing exit test, which runs in a subprocess; that subprocess's coverage does not merge back into the profile (checked 2026-10-21, Swift 6.4), so the trap's message closure is the one place the profile cannot see run.
 - The `?? 0` fallback in `resolveCompatible` is a defensive default: the offset set is seeded with three probes and is never empty, so the fallback branch never runs. It is a sub-line region the line-coverage number does not flag.
+- `llvm-cov report` counts each closure as a line of its own, so its Lines column shows two uncovered lines in `Evaluator.swift`, both closures sharing a line with code that runs: the trap message above and the `?? 0` fallback. `llvm-cov show` reports no zero-count source line in any file, which is the measure this section states.
 - `llvm-cov report` shows a region/branch total slightly below 100% (~99.7%). Those are sub-line artifacts — the trap message autoclosure, the `?? 0` fallback, and the exhaustive-`switch` arms the input domain can't reach — not unexercised statements. The mutation pass covers the branch logic directly.
 
 The vendored conformance vectors pass untouched.
