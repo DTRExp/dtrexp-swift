@@ -85,7 +85,7 @@ public struct DTRExp: Sendable {
     /// ``EvaluationError/unknownTimeZone(_:)``, so binding never falls back to
     /// UTC or the host's zone.
     public func withZone(_ identifier: String) throws -> DTRExp {
-        guard !identifier.isEmpty, let zone = Self.ianaZone(identifier) else {
+        guard let zone = Self.ianaZone(identifier) else {
             throw EvaluationError.unknownTimeZone(identifier)
         }
         return withZone(zone)
@@ -113,15 +113,18 @@ public struct DTRExp: Sendable {
 
     private static let utc = TimeZone(identifier: "UTC")!
 
-    /// The zone an IANA identifier names. Some systems link zoneinfo's
-    /// `localtime` to the host's zone; it is no IANA name, and nor is a path
-    /// that is not normalized (`./localtime`, `a//b`), so they name none.
+    /// The zone an IANA identifier names, or `nil`.
     private static func ianaZone(_ identifier: String) -> TimeZone? {
+        isIANAShaped(identifier) ? TimeZone(identifier: identifier) : nil
+    }
+
+    /// Whether `identifier` can be an IANA name at all. Some systems link
+    /// zoneinfo's `localtime` to the host's zone; it is no IANA name, and nor
+    /// is a path that is not normalized (`./localtime`, `a//b`) or the empty
+    /// string. Foundation on Linux reads such paths from the zoneinfo folder.
+    static func isIANAShaped(_ identifier: String) -> Bool {
         let segments = identifier.split(separator: "/", omittingEmptySubsequences: false)
-        guard !segments.contains(where: { $0.isEmpty || $0 == "." }), segments.last != "localtime" else {
-            return nil
-        }
-        return TimeZone(identifier: identifier)
+        return !segments.contains { $0.isEmpty || $0 == "." } && segments.last != "localtime"
     }
 }
 
