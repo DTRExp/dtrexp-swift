@@ -10,7 +10,7 @@ import Foundation
 /// ```
 ///
 /// Expressions are time-zone agnostic; the zone is a parameter of evaluation
-/// (default UTC). Invalid expressions throw ``ParseError`` at initialization;
+/// (default the bound ``zone``, see ``withZone(_:)-(TimeZone)``, else UTC). Invalid expressions throw ``ParseError`` at initialization;
 /// statically unsatisfiable ones parse and surface ``warnings``.
 public struct DTRExp: Sendable {
     /// The original expression text.
@@ -21,6 +21,10 @@ public struct DTRExp: Sendable {
     /// branch surface here.
     public let warnings: [Warning]
 
+    /// The bound evaluation zone, or `nil` when unbound. Set by
+    /// ``withZone(_:)-(TimeZone)``; a zone passed to a call still wins.
+    public let zone: TimeZone?
+
     let branches: [Expression]
 
     /// Parses a DTRExp, throwing ``ParseError`` on invalid input.
@@ -30,6 +34,14 @@ public struct DTRExp: Sendable {
         self.source = source
         self.branches = branches
         self.warnings = computeWarnings(branches)
+        self.zone = nil
+    }
+
+    private init(_ original: DTRExp, zone: TimeZone) {
+        self.source = original.source
+        self.branches = original.branches
+        self.warnings = original.warnings
+        self.zone = zone
     }
 
     /// Parses a DTRExp, throwing ``ParseError`` on invalid input — the fixed
@@ -54,15 +66,43 @@ public struct DTRExp: Sendable {
         }
     }
 
+    /// A copy of the expression whose evaluation defaults to `timeZone`,
+    /// readable as ``zone``; the original is left as it is. The copy's
+    /// ``source`` and ``warnings`` are the original's, since the zone belongs
+    /// to evaluation, never to the expression. A zone passed to a call wins.
+    ///
+    /// ```swift
+    /// let hours = try DTRExp("T0900:1800 E1:5").withZone(TimeZone(identifier: "Europe/Berlin")!)
+    /// hours.covers(Date())  // evaluated in Berlin
+    /// ```
+    public func withZone(_ timeZone: TimeZone) -> DTRExp {
+        DTRExp(self, zone: timeZone)
+    }
+
+    /// A copy of the expression whose evaluation defaults to the zone named by
+    /// the IANA identifier; see ``withZone(_:)-(TimeZone)``. The identifier is
+    /// checked here, at once: an unknown or empty one throws
+    /// ``EvaluationError/unknownTimeZone(_:)``, so binding never falls back to
+    /// UTC or the host's zone.
+    public func withZone(_ identifier: String) throws -> DTRExp {
+        guard !identifier.isEmpty, let zone = TimeZone(identifier: identifier) else {
+            throw EvaluationError.unknownTimeZone(identifier)
+        }
+        return withZone(zone)
+    }
+
     /// Whether `instant` lies inside the expression's covered set, evaluated
-    /// in `timeZone` (spec §9).
-    public func covers(_ instant: Date, timeZone: TimeZone = TimeZone(identifier: "UTC")!) -> Bool {
+    /// in `timeZone` (spec §9): by default the bound ``zone``, else UTC. A
+    /// `timeZone` passed here, UTC included, wins over the bound zone.
+    public func covers(_ instant: Date, timeZone: TimeZone? = nil) -> Bool {
+        let timeZone = timeZone ?? zone ?? Self.utc
         let fields = Fields(instant: instant, timeZone: timeZone)
         return branches.contains { expressionCovers($0, fields: fields, timeZone: timeZone) }
     }
 
     /// Whether `instant` lies inside the expression's covered set, evaluated
-    /// in the zone named by the IANA identifier `tz`.
+    /// in the zone named by the IANA identifier `tz`, which wins over the
+    /// bound ``zone``.
     /// Throws ``EvaluationError/unknownTimeZone(_:)`` for an unknown identifier.
     public func covers(_ instant: Date, tz identifier: String) throws -> Bool {
         guard let zone = TimeZone(identifier: identifier) else {
@@ -70,6 +110,8 @@ public struct DTRExp: Sendable {
         }
         return covers(instant, timeZone: zone)
     }
+
+    private static let utc = TimeZone(identifier: "UTC")!
 }
 
 /// The outcome of ``DTRExp/validate(_:)`` — the non-throwing counterpart of

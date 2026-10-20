@@ -40,15 +40,22 @@ let berlin = TimeZone(identifier: "Europe/Berlin")!
 dtr.covers(Date(), timeZone: berlin)
 // —> true on a weekday, 09:00–18:00 Berlin local time
 // The zone is an evaluation parameter, never part of the expression;
-// omit it and evaluation is in UTC.
+// omit it and evaluation is in the bound zone, else UTC.
 
 // By IANA name; throws on an unknown identifier:
 let ok = try dtr.covers(Date(), tz: "Europe/Berlin")
+
+// Bind the zone once; a copy, dtr is left as it is:
+let hours = try dtr.withZone("Europe/Berlin")
+hours.covers(Date())                       // in Berlin
+try hours.covers(Date(), tz: "UTC")        // a zone passed to the call wins
 ```
 
 `DTRExp("…")` and the equivalent static `DTRExp.parse("…")` both parse; `parse` is the fixed cross-language name for what the initializer does natively.
 
 Note that you parse **once** (at write/config time) and evaluate **many**; a `DTRExp` value is an immutable `struct`, `Sendable`, and safe to share across concurrent evaluations. `covers` is a single calendar-field extraction followed by integer comparisons; no occurrence iteration.
+
+**Which to use:** bind the zone with `withZone(_:)` when it belongs to what the expression describes (a store's hours, a venue's schedule), and pass the zone per call when it belongs to whoever is asking (a rule shown to each user in their own zone). A bound copy shares its `source` with the original, so a cache of parsed expressions keys on `source` and `zone` together.
 
 ## Errors and Warnings
 
@@ -69,7 +76,8 @@ result.warnings                        // [Warning] — no February has 30 days
 - `DTRExp(_:)` and `DTRExp.parse(_:)` return the parsed value or throw a `ParseError` (*message* `String`, *position* `Int?`). Both are typed as `throws(ParseError)`.
 - `DTRExp.validate(_:)` never throws; typo-shaped input comes back as data. Returns a `ValidationResult` with *valid* `Bool`, *errors* `[ParseError]` (parsing stops at the first syntax error, so at most one) and *warnings* `[Warning]`.
 - Warnings are the spec's [§9.1](https://github.com/DTRExp/dtrexp/blob/main/spec.md#91-the-existence-rule) unsatisfiability lint: expressions that parse but can never match. The parsed value's `warnings` property and `validate(_:).warnings` carry the same content.
-- `covers(_:tz:)` throws an `EvaluationError` for an unknown IANA identifier. The zone-typed `covers(_:timeZone:)` cannot fail.
+- `covers(_:tz:)` throws an `EvaluationError` for an unknown IANA identifier. The zone-typed `covers(_:timeZone:)` cannot fail; its default (`nil`) is the bound `zone`, else UTC, and a zone passed to either call wins over the bound one.
+- `withZone(_:)` returns a copy whose evaluation defaults to that zone, readable as `zone` (`TimeZone?`, `nil` when unbound); its `source` and `warnings` are the original's. The `TimeZone` form cannot fail; the identifier form throws `EvaluationError.unknownTimeZone` at once for an unknown or empty identifier, so binding never falls back to UTC or the host's zone.
 
 ## Conformance & Quality
 
