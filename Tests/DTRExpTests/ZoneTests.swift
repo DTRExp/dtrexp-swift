@@ -52,6 +52,16 @@ struct WithZoneTests {
         #expect(berlin.covers(later))  // 11:30 Berlin
     }
 
+    @Test("refuses localtime in a call too, which some systems link to the host's zone")
+    func localtimeInACall() throws {
+        let expr = try DTRExp(hours)
+        #expect {
+            _ = try expr.covers(Date(), tz: "localtime")
+        } throws: { error in
+            (error as? EvaluationError)?.description == "unknown IANA time zone identifier 'localtime'"
+        }
+    }
+
     @Test("throws at once on an unknown or empty identifier")
     func unknownOrEmpty() throws {
         let expr = try DTRExp(hours)

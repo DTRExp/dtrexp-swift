@@ -85,7 +85,7 @@ public struct DTRExp: Sendable {
     /// ``EvaluationError/unknownTimeZone(_:)``, so binding never falls back to
     /// UTC or the host's zone.
     public func withZone(_ identifier: String) throws -> DTRExp {
-        guard !identifier.isEmpty, let zone = TimeZone(identifier: identifier) else {
+        guard !identifier.isEmpty, let zone = Self.ianaZone(identifier) else {
             throw EvaluationError.unknownTimeZone(identifier)
         }
         return withZone(zone)
@@ -105,13 +105,19 @@ public struct DTRExp: Sendable {
     /// bound ``zone``.
     /// Throws ``EvaluationError/unknownTimeZone(_:)`` for an unknown identifier.
     public func covers(_ instant: Date, tz identifier: String) throws -> Bool {
-        guard let zone = TimeZone(identifier: identifier) else {
+        guard let zone = Self.ianaZone(identifier) else {
             throw EvaluationError.unknownTimeZone(identifier)
         }
         return covers(instant, timeZone: zone)
     }
 
     private static let utc = TimeZone(identifier: "UTC")!
+
+    /// The zone an IANA identifier names. Some systems link zoneinfo's
+    /// `localtime` to the host's zone; it is no IANA name, so it names none.
+    private static func ianaZone(_ identifier: String) -> TimeZone? {
+        identifier == "localtime" ? nil : TimeZone(identifier: identifier)
+    }
 }
 
 /// The outcome of ``DTRExp/validate(_:)`` — the non-throwing counterpart of
