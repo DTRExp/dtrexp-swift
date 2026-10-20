@@ -65,7 +65,7 @@ struct WithZoneTests {
     @Test("throws at once on an unknown or empty identifier")
     func unknownOrEmpty() throws {
         let expr = try DTRExp(hours)
-        for id in ["Mars/Olympus", "", "Local", "localtime"] {
+        for id in ["Mars/Olympus", "", "Local", "localtime", "./localtime", "posix/localtime", "Europe//Berlin"] {
             #expect {
                 _ = try expr.withZone(id)
             } throws: { error in

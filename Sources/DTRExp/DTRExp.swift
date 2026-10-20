@@ -114,9 +114,14 @@ public struct DTRExp: Sendable {
     private static let utc = TimeZone(identifier: "UTC")!
 
     /// The zone an IANA identifier names. Some systems link zoneinfo's
-    /// `localtime` to the host's zone; it is no IANA name, so it names none.
+    /// `localtime` to the host's zone; it is no IANA name, and nor is a path
+    /// that is not normalized (`./localtime`, `a//b`), so they name none.
     private static func ianaZone(_ identifier: String) -> TimeZone? {
-        identifier == "localtime" ? nil : TimeZone(identifier: identifier)
+        let segments = identifier.split(separator: "/", omittingEmptySubsequences: false)
+        guard !segments.contains(where: { $0.isEmpty || $0 == "." }), segments.last != "localtime" else {
+            return nil
+        }
+        return TimeZone(identifier: identifier)
     }
 }
 
