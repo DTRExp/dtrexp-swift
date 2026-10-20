@@ -52,6 +52,16 @@ struct WithZoneTests {
         #expect(berlin.covers(later))  // 11:30 Berlin
     }
 
+    @Test("only a normalized path not ending in localtime can be an IANA name")
+    func ianaShaped() {
+        for id in ["Europe/Berlin", "UTC", "America/Argentina/Buenos_Aires", "Etc/GMT+5"] {
+            #expect(DTRExp.isIANAShaped(id), "\(id)")
+        }
+        for id in ["", "localtime", "posix/localtime", "./localtime", "Europe/./Berlin", "Europe//Berlin", "/UTC", "Europe/"] {
+            #expect(!DTRExp.isIANAShaped(id), "\(id)")
+        }
+    }
+
     @Test("refuses localtime in a call too, which some systems link to the host's zone")
     func localtimeInACall() throws {
         let expr = try DTRExp(hours)

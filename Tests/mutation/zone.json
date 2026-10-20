@@ -1,0 +1,12 @@
+[
+["Z-cover-callwins","DTRExp.swift","let timeZone = timeZone ?? zone ?? Self.utc","let timeZone = zone ?? timeZone ?? Self.utc"],
+["Z-cover-nobound","DTRExp.swift","let timeZone = timeZone ?? zone ?? Self.utc","let timeZone = timeZone ?? Self.utc"],
+["Z-bind-keeps","DTRExp.swift","        DTRExp(self, zone: timeZone)\n","        self\n"],
+["Z-shape-not","DTRExp.swift","return !segments.contains { $0.isEmpty || $0 == \".\" }","return segments.contains { $0.isEmpty || $0 == \".\" }"],
+["Z-shape-or","DTRExp.swift","{ $0.isEmpty || $0 == \".\" }","{ $0.isEmpty && $0 == \".\" }"],
+["Z-shape-noempty","DTRExp.swift","{ $0.isEmpty || $0 == \".\" }","{ $0 == \".\" }"],
+["Z-shape-nodot","DTRExp.swift","{ $0.isEmpty || $0 == \".\" }","{ $0.isEmpty }"],
+["Z-shape-and","DTRExp.swift","} && segments.last != \"localtime\"","} || segments.last != \"localtime\""],
+["Z-shape-last","DTRExp.swift","segments.last != \"localtime\"","segments.last == \"localtime\""],
+["Z-shape-split","DTRExp.swift","omittingEmptySubsequences: false","omittingEmptySubsequences: true"]
+]

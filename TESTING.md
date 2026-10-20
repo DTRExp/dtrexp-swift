@@ -28,6 +28,7 @@ Mutation, one spec at a time:
 python3 Tests/mutation/mutate.py Tests/mutation/eval_civil.json
 python3 Tests/mutation/mutate.py Tests/mutation/parser.json
 python3 Tests/mutation/mutate.py Tests/mutation/warn_top.json
+python3 Tests/mutation/mutate.py Tests/mutation/zone.json
 ```
 
 ## Coverage: 100% of Lines
@@ -50,13 +51,14 @@ The pass here is scripted instead, and stronger for it: a driver applies spec'd 
 
 The harness and its specs sit in `Tests/mutation/`: `mutate.py`, and one spec per area, each a list of `[id, file, old, new]` where `old` must occur exactly once in the file. Each run writes `<spec>_results.json` beside its spec; those are reports, so they are not committed.
 
-Latest run (2026-09-26): **136 mutants, 136 killed.** Every killable survivor found in the first pass got a real behavioral test and now dies. The 13 that no test can distinguish from the original were proven equivalent and have left the specs and their results, so they are not scored as misses; their proofs stay below.
+Latest run (2026-09-26; `zone.json` added 2026-10-21 with `withZone`): **146 mutants, 146 killed.** Every killable survivor found in the first pass got a real behavioral test and now dies. The 13 that no test can distinguish from the original were proven equivalent and have left the specs and their results, so they are not scored as misses; their proofs stay below.
 
 | Spec | Files | Mutants | Killed | Equivalents dropped |
 | --- | --- | --- | --- | --- |
 | `eval_civil.json` | `Civil`, `Evaluator` | 80 | 80 | 7 |
 | `parser.json` | `Parser` | 45 | 45 | 4 |
 | `warn_top.json` | `Warnings`, `DTRExp` | 11 | 11 | 2 |
+| `zone.json` | `DTRExp` (`withZone`, `covers`, `isIANAShaped`) | 10 | 10 | 1 |
 
 ### Killable Survivors, Now Killed
 
@@ -66,7 +68,7 @@ Each survived the first pass and is killed by a behavioral test written for it.
 - **Parser** (`ParserBoundaryTests.swift`): the inclusive maxima (December; date-literal minute and second 59; time-value 23 and 59; day of month 31); month-zero rejection; an equal-length cross-unit cadence (`1W/7D` invalid); a fifteen-digit period clearing the size guard; the year domain 1…9999 (`Y1` valid, `Y0` out of domain); a stride interval equal to the domain size (`M1/12`); the full negative weekday index (`E-7`); an equal-endpoint range as a single value (`M5:5`).
 - **Warnings** (`WarningBoundaryTests.swift`): the month → quarter index (`M3 Q1`, `M6 Q2` stay quiet); the Q1 length ceiling (`D92 Q1` warns); a single-value year range enumerating one year (`Y2000:2000 W53`); a single-point year stride (`Y2000:2000/2 W53`); the half-open stride boundary (`Y2003:2004/5 W53`, only 2003 on).
 
-### Dropped Equivalents (13)
+### Dropped Equivalents (14)
 
 Each is a mutant no test can distinguish, because the mutated comparison only differs on inputs the parser already excludes, or on iterations/branches that provably never run. A proven equivalent leaves the spec rather than being scored as a survivor; the id names the exact edit, so a change to that line brings it back for another look.
 
@@ -86,4 +88,6 @@ Each is a mutant no test can distinguish, because the mutated comparison only di
 | `W-concyears-range<lim` | `Warnings` year enumeration | `b − a < limit` → `<= limit` | The 1000-year cap only chooses enumerate-vs-fallback; across any span that large every week-year length (52, 53) and day-year length (365, 366) occurs, so the enumerated domain equals the fallback domain and the warnings are identical. |
 | `W-concyears-stridelim` | `Warnings` year stride enumeration | `end − start < limit` → `<= limit` | Same reasoning for the stride span. |
 
-The exact edit behind each is in its spec as of 7ffbcf1, the last commit that carried it.
+| `Z-iana-guard` | `DTRExp.ianaZone` | `isIANAShaped(id) ? TimeZone(identifier: id) : nil` → `TimeZone(identifier: id)` | On macOS, Foundation already returns `nil` for every name the check refuses (`localtime`, `posix/localtime`, `./localtime`, `Europe/./Berlin`, `Europe//Berlin`, `/UTC`, `Europe/`; probed 2026-10-21), so the guard changes nothing there. It exists for Linux, whose Foundation reads such paths from the zoneinfo folder; the check itself is killed directly through `isIANAShaped`. |
+
+The exact edit behind each of the first thirteen is in its spec as of 7ffbcf1, the last commit that carried it.
