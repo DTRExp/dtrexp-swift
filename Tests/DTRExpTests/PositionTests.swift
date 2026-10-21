@@ -52,6 +52,42 @@ struct ErrorPositionTests {
         #expect(position(source) == expected, "\(source)")
     }
 
+    @Test("a rule error reads on to the end of its branch, a later grammar error included",
+          arguments: [
+              ("M13,X", 1), ("Y2020:2019,X", 6), ("Y-1 X", 1), ("Y0 X", 1), ("M-0 X", 1), ("M0 X", 1),
+              ("M-13 X", 1), ("E7#0 X", 3), ("E7#6 X", 3), ("M1/1 X", 3), ("M1/13 X", 3), ("M1/3/3 X", 5),
+              ("H22:0/2 X", 5), ("Y*/3 X", 2), ("M*:3/2 X", 4), ("M-1:3/2 X", 5), ("M2147483648 X", 1),
+              ("T25 X", 1), ("T0960 X", 1), ("T2400 X", 1), ("T2400:0100 X", 1), ("T090060 X", 1),
+              ("T1 X", 1), ("T090 X", 1), ("T0900:0900,X", 6), ("T090000.5 X", 7), ("T2500:2600 X", 1),
+              ("20230229 X", 0), ("20200101T2400 X", 0), ("20200101T000060 X", 0), ("2020010 X", 0),
+              ("20200101T09 X", 0), ("20200101/0D X", 9), ("20200101/2D/0D X", 12),
+              ("20200101/2D/3D X", 12), ("20200101/2D/1M X", 12), ("20200101/1D/24H X", 12),
+              ("20180301:20170301 X", 9), ("20200101 20200102 X", 9), ("20200101 *:20200102 X", 9),
+              ("20200101/2D 20200101/2D X", 12), ("M1 M2 X", 3),
+          ] as [(String, Int)])
+    func readsOn(_ source: String, _ expected: Int) {
+        #expect(position(source) == expected, "\(source)")
+    }
+
+    @Test("D's domain waits for its scope: a grammar error first wins, a complete branch competes",
+          arguments: [
+              ("D40 M3/1", 1), ("D40 20230229", 1), ("D2/40 X", 6), ("D2/40 M1", 3), ("D-40 M3/1", 1),
+              ("D1:40 Q1 M13", 3), ("D!40", 2), ("D1,40", 3), ("D*:40", 3), ("D40/2", 1),
+              ("D1:40/2 M1", 3), ("D*/2", 2), ("D366 Q1", 1), ("D40:41", 1), ("D40:41/2", 1),
+              ("D1/32", 3), ("D40 T1", 1), ("D40 T:0900", 5), ("D40 M*5", 1), ("20200101/0D/1H", 9),
+              ("D0 X", 3), ("D-0 X", 1),
+          ] as [(String, Int)])
+    func daysWait(_ source: String, _ expected: Int) {
+        #expect(position(source) == expected, "\(source)")
+    }
+
+    @Test("a whole-domain D waits for no scope")
+    func wholeDay() {
+        #expect(DTRExp.validate("D* M2").errors.isEmpty)
+        #expect(DTRExp.validate("D1/31").errors.isEmpty)  // a stride over D's whole domain
+        #expect(DTRExp.validate("M1/3/1").errors.isEmpty)  // a duration of 1
+    }
+
     @Test("positions count code points, not grapheme clusters")
     func codePoints() {
         // A combining mark after a space joins it in one grapheme cluster, but

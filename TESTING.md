@@ -54,12 +54,12 @@ The pass here is scripted instead, and stronger for it: a driver applies spec'd 
 
 The harness and its specs sit in `Tests/mutation/`: `mutate.py`, and one spec per area, each a list of `[id, file, old, new]` where `old` must occur exactly once in the file. Each run writes `<spec>_results.json` beside its spec; those are reports, so they are not committed.
 
-Latest run (2026-10-21, all four specs, spec draft 3: error positions, the integer limit, the year-9999 edge, tz-database zone names): **205 mutants, 205 killed.** Every killable survivor found in a first pass got a real behavioral test and now dies. The 15 that no test can distinguish from the original were proven equivalent and have left the specs and their results, so they are not scored as misses; their proofs stay below.
+Latest run (2026-10-21, all four specs, spec draft 3: error positions, the integer limit, the year-9999 edge, tz-database zone names; the parser rerun on its own the same day, after it began reading on past a rule error so that the earliest error wins, a later grammar error included, with only D's domain waiting for the branch): **221 mutants, 221 killed.** Every killable survivor found in a first pass got a real behavioral test and now dies. The 15 that no test can distinguish from the original were proven equivalent and have left the specs and their results, so they are not scored as misses; their proofs stay below.
 
 | Spec | Files | Mutants | Killed | Equivalents dropped |
 | --- | --- | --- | --- | --- |
 | `eval_civil.json` | `Civil`, `Evaluator` | 86 | 86 | 7 |
-| `parser.json` | `Parser` | 81 | 81 | 5 |
+| `parser.json` | `Parser` | 97 | 97 | 5 |
 | `warn_top.json` | `Warnings`, `DTRExp` | 14 | 14 | 2 |
 | `zone.json` | `DTRExp` (`withZone`, `covers`, `isIANAShaped`, the tz name list) | 24 | 24 | 1 |
 
@@ -70,6 +70,7 @@ Each survived the first pass and is killed by a behavioral test written for it.
 - **Civil and Evaluator** (`BoundaryTests.swift`): `floorDiv`'s `a % b != 0` → `== 0`, `q - 1` → `q + 1`, and `floorMod`'s `r + b` → `r - b`, by the floor-arithmetic contract on negative operands; `isLeapYear`'s `y % 400 == 0` → `!= 0`, by "the last day of Feb 2000 is the 29th"; the cadence `f.month - anchor.month` → `+`, by a monthly window matching in a later month; dropping the `kEstimate - 1` iteration, by an end-of-month-anchored window found in a shorter month (`20240131/1M/2D` at 02-01); the year duration `* 12` → `* 11`, by a one-year window still covering month 12; `elapsed >= 0` → `> 0`, by the anchor instant itself being covered; `elapsed % period < duration` → `<=`, by the instant exactly at the window end being excluded.
 - **Parser** (`ParserBoundaryTests.swift`): the inclusive maxima (December; date-literal minute and second 59; time-value 23 and 59; day of month 31); month-zero rejection; an equal-length cross-unit cadence (`1W/7D` invalid); a fifteen-digit period clearing the size guard; the year domain 1…9999 (`Y1` valid, `Y0` out of domain); a stride interval equal to the domain size (`M1/12`); the full negative weekday index (`E-7`); an equal-endpoint range as a single value (`M5:5`).
 - **Draft 3** (`PositionTests.swift`, `ZoneTests.swift`, `BoundaryTests.swift`): a month window capped at the year-9999 edge, by `99991201/2M/1M` still covering January 10000; every other new mutant (positions, the integer limit, the zone list, the window caps) died on the first pass.
+- **Earliest error** (`PositionTests.swift`): a zero cadence period with a written duration (`20200101/0D/1H` at 9); a D range's start and a D stride range's start (`D40:41`, `D40:41/2`); a stride duration of 1 (`M1/3/1`); a D stride over its whole domain (`D1/31` valid, `D1/32` not); a one-digit time value as a rule error and an empty one as a grammar error, told apart by a D value before them (`D40 T1` at 1, `D40 T:0900` at 5). Two more were equivalent, so the code they mutated was simplified away: Y's exception in the stride wrap check (a Y wrap is already an error at its end, which comes first) and a separate interval position for `Y*/3` (its anchorless error at the `/` always comes first).
 - **Warnings** (`WarningBoundaryTests.swift`): the month → quarter index (`M3 Q1`, `M6 Q2` stay quiet); the Q1 length ceiling (`D92 Q1` warns); a single-value year range enumerating one year (`Y2000:2000 W53`); a single-point year stride (`Y2000:2000/2 W53`); the half-open stride boundary (`Y2003:2004/5 W53`, only 2003 on).
 
 ### Dropped Equivalents (15)
@@ -88,7 +89,7 @@ Each is a mutant no test can distinguish, because the mutated comparison only di
 | `P-wrap-sv0` | `Parser` wrap detection | `start ≥ 0` → `start > 0` | A wrap needs `start > end` with `end ≥ 0`, so `start ≥ 1`; `start == 0` can never wrap and the guarded `start > end` is already false. |
 | `P-vd-negcount-lt` | `Parser` negative-domain check | `v < 0` → `v <= 0` | The conjunction `&& v < −count` is false at `v == 0` (`−count` is negative), so the extra `v == 0` case is rejected by the second operand anyway. |
 | `P-vd-single-at` | `Parser` domain check of a single value | `place.start` → `place.end` | A single value is recorded with its start as its end (`(start, start)`), so both name the same offset. |
-| `P-tl-wrap` | `Parser` time wrap split | `s > e` → `s >= e` | Equal endpoints are rejected two lines earlier by `guard s != e`, so `s == e` never reaches this comparison. |
+| `P-tl-wrap` | `Parser` time wrap split | `s > e` → `s >= e` | Equal endpoints are an error two lines earlier, and the branch ends with it, so a range built from them is never evaluated. |
 | `P-tl-e0` | `Parser` wrap low-span | `e > 0` → `e >= 0` | At `e == 0` the mutant appends a `[0, 0)` span, which is empty and matches no instant; identical coverage. |
 | `W-concyears-range<lim` | `Warnings` year enumeration | `b − a < limit` → `<= limit` | The 1000-year cap only chooses enumerate-vs-fallback; across any span that large every week-year length (52, 53) and day-year length (365, 366) occurs, so the enumerated domain equals the fallback domain and the warnings are identical. |
 | `W-concyears-stridelim` | `Warnings` year stride enumeration | `end − start < limit` → `<= limit` | Same reasoning for the stride span. |
