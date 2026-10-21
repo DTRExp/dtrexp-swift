@@ -18,7 +18,7 @@ Scope: **parsing, validation and coverage evaluation** (the spec's core interfac
 Add the package to your `Package.swift`:
 
 ```swift
-.package(url: "https://github.com/DTRExp/dtrexp-swift", from: "1.1.0")
+.package(url: "https://github.com/DTRExp/dtrexp-swift", from: "1.2.0")
 ```
 
 Then depend on the `DTRExp` product from your target:
