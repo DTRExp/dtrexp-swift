@@ -474,7 +474,11 @@ struct Parser {
         let startPoint: Endpoint
         if peek() == "*" {
             guard peek(1) == ":" else {
-                throw fail("bare '*' in a list — a list containing the whole domain is the whole domain", at: start)
+                // a rule error at the '*': the branch reads on as if it were '*:*', so a waiting D check still competes
+                note("bare '*' in a list — a list containing the whole domain is the whole domain", at: start)
+                advance()
+                places.items.append((start, start))
+                return .range(start: .star, end: .star, wraps: false)
             }
             advance()  // now positioned at the ':' checked via peek(1)
             startPoint = .star

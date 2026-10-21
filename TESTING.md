@@ -54,12 +54,12 @@ The pass here is scripted instead, and stronger for it: a driver applies spec'd 
 
 The harness and its specs sit in `Tests/mutation/`: `mutate.py`, and one spec per area, each a list of `[id, file, old, new]` where `old` must occur exactly once in the file. Each run writes `<spec>_results.json` beside its spec; those are reports, so they are not committed.
 
-Latest run (2026-10-21, all four specs, spec draft 3: error positions, the integer limit, the year-9999 edge, tz-database zone names; the parser rerun on its own the same day, after it began reading on past a rule error so that the earliest error wins, a later grammar error included, with only D's domain waiting for the branch; four more added for a misplaced fraction and an occurrence starting past year 9999, run on their own): **225 mutants, 225 killed.** Every killable survivor found in a first pass got a real behavioral test and now dies. The 15 that no test can distinguish from the original were proven equivalent and have left the specs and their results, so they are not scored as misses; their proofs stay below.
+Latest run (2026-10-21, all four specs, spec draft 3: error positions, the integer limit, the year-9999 edge, tz-database zone names; the parser rerun on its own the same day, after it began reading on past a rule error so that the earliest error wins, a later grammar error included, with only D's domain waiting for the branch; six more added for a misplaced fraction, an occurrence starting past year 9999 and a bare `*` in a list, run on their own): **227 mutants, 227 killed.** Every killable survivor found in a first pass got a real behavioral test and now dies. The 15 that no test can distinguish from the original were proven equivalent and have left the specs and their results, so they are not scored as misses; their proofs stay below.
 
 | Spec | Files | Mutants | Killed | Equivalents dropped |
 | --- | --- | --- | --- | --- |
 | `eval_civil.json` | `Civil`, `Evaluator` | 88 | 88 | 7 |
-| `parser.json` | `Parser` | 99 | 99 | 5 |
+| `parser.json` | `Parser` | 101 | 101 | 5 |
 | `warn_top.json` | `Warnings`, `DTRExp` | 14 | 14 | 2 |
 | `zone.json` | `DTRExp` (`withZone`, `covers`, `isIANAShaped`, the tz name list) | 24 | 24 | 1 |
 

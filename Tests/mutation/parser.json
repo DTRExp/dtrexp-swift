@@ -592,5 +592,17 @@
 "Parser.swift",
 "note(\"milliseconds follow only a 6-digit hhmmss time value\", at: pos)",
 "note(\"milliseconds follow only a 6-digit hhmmss time value\", at: pos + 1)"
+],
+[
+"P-bare-star-rule-pos",
+"Parser.swift",
+"note(\"bare '*' in a list — a list containing the whole domain is the whole domain\", at: start)",
+"note(\"bare '*' in a list — a list containing the whole domain is the whole domain\", at: start + 1)"
+],
+[
+"P-bare-star-rule-drop",
+"Parser.swift",
+"                note(\"bare '*' in a list — a list containing the whole domain is the whole domain\", at: start)\n",
+"                \n"
 ]
 ]
