@@ -5,26 +5,31 @@
 /// Thrown when an expression fails to parse or violates a static validity rule.
 public struct ParseError: Error, CustomStringConvertible, Sendable {
     public let message: String
-    /// Offset into the source string where the problem was detected, when known.
-    public let position: Int?
+    /// The 0-based offset, in Unicode code points, of the first character of
+    /// the token at fault (spec §8). Always set; optional only so code written
+    /// against earlier releases keeps compiling.
+    public var position: Int? { offset }
+    let offset: Int
 
-    public var description: String {
-        if let position { return "\(message) (at offset \(position))" }
-        return message
-    }
+    public var description: String { "\(message) (at offset \(offset))" }
 
-    init(_ message: String, at position: Int? = nil) {
+    init(_ message: String, at position: Int) {
         self.message = message
-        self.position = position
+        self.offset = position
     }
 }
 
 struct Parser {
+    /// An integer's largest value (spec §8); leading zeros do not count against it.
+    static let maxInteger = 2_147_483_647
+
     private let chars: [Character]
     private var pos = 0
 
     init(_ source: String) {
-        self.chars = Array(source)
+        // One element per Unicode scalar, so an offset is a code-point offset
+        // (spec §8), never a count of grapheme clusters.
+        self.chars = source.unicodeScalars.map(Character.init)
     }
 
     // MARK: - Scanner primitives
@@ -49,27 +54,33 @@ struct Parser {
         return out
     }
 
-    private mutating func readInt(_ what: String) throws(ParseError) -> Int {
+    /// Digits as an integer. `token` is where the token holding them starts
+    /// (a value's sign), where a value above the limit is reported.
+    private mutating func readInt(_ what: String, token: Int? = nil) throws(ParseError) -> Int {
         let start = pos
         let digits = readDigits()
         guard !digits.isEmpty else { throw ParseError("expected \(what)", at: start) }
-        guard let v = Int(digits), digits.count <= 15 else {
-            throw ParseError("\(what) is too large", at: start)
+        // Leading zeros are free (`M0000000003` is `M3`); the value is bounded.
+        // Equal-length digit strings compare as their numbers do.
+        let significant = String(digits.drop { $0 == "0" })
+        guard significant.count < 10 || (significant.count == 10 && significant <= "2147483647") else {
+            throw ParseError("integer \(significant) is above the limit of \(Parser.maxInteger)", at: token ?? start)
         }
-        return v
+        return Int(significant) ?? 0
     }
 
     /// Optional leading `-` followed by digits.
     private mutating func readSignedInt(_ what: String) throws(ParseError) -> Int {
+        let start = pos
         var negative = false
         if peek() == "-" {
             negative = true
             advance()
         }
-        let v = try readInt(what)
+        let v = try readInt(what, token: start)
         if negative && v == 0 {
             // the sign requires a nonzero integer: '-0' is not a value (spec §3)
-            throw ParseError("'-0' is not a value")
+            throw ParseError("'-0' is not a value", at: start)
         }
         return negative ? -v : v
     }
@@ -104,8 +115,16 @@ struct Parser {
 
     // MARK: - Components
 
+    /// Where a selector's values and stride interval sit in the source, for
+    /// the domain errors raised once the whole expression is known.
+    private struct SelectorPlaces {
+        /// Per item: its value (or range start) and its range end.
+        var items: [(start: Int, end: Int)] = []
+        var interval = 0
+    }
+
     private enum RawComponent {
-        case selector(Selector)
+        case selector(Selector, SelectorPlaces)
         case cadence(Cadence, position: Int)
         case bounds(BoundsWindow, position: Int)
     }
@@ -117,11 +136,11 @@ struct Parser {
             // Bounds with an open start: `*:date`.
             advance()
             guard peek() == ":" else {
-                throw ParseError("'*' outside a selector must start a '*:<date>' bounds range", at: start)
+                throw ParseError("'*' outside a selector must start a '*:<date>' bounds range", at: pos)
             }
             advance()
             if peek() == "*" {
-                throw ParseError("bounds require at least one date-literal endpoint ('*:*' is invalid)", at: start)
+                throw ParseError("bounds require at least one date-literal endpoint ('*:*' is invalid)", at: pos)
             }
             let end = try parseDateLiteral()
             return .bounds(BoundsWindow(startMs: nil, endMs: end.spanEndMs), position: start)
@@ -134,7 +153,8 @@ struct Parser {
         }
         if let d = Designator(rawValue: c) {
             advance()
-            return .selector(try parseSelector(d, at: start))
+            let (selector, places) = try parseSelector(d, at: start)
+            return .selector(selector, places)
         }
         throw ParseError("unexpected character '\(c)'", at: start)
     }
@@ -160,22 +180,24 @@ struct Parser {
         let y = Int(digits.prefix(4))!
         let mo = Int(digits.dropFirst(4).prefix(2))!
         let d = Int(digits.suffix(2))!
-        guard (1...12).contains(mo), d >= 1, d <= daysInMonth(y, mo) else {
+        // Date-literal years are 1-9999 (spec §3.1): `00000101` is no date.
+        guard y >= 1, (1...12).contains(mo), d >= 1, d <= daysInMonth(y, mo) else {
             throw ParseError("'\(digits)' is not a real calendar date", at: start)
         }
         var dt = NaiveDateTime(year: y, month: mo, day: d)
         var spanMs = msPerDay
         if peek() == "T" {
+            // A malformed or out-of-range time part is the date literal's
+            // fault, reported at its first character (spec §8).
             advance()
-            let tStart = pos
             let tDigits = readDigits()
             guard tDigits.count == 4 || tDigits.count == 6 else {
-                throw ParseError("malformed time-part in date literal — expected Thhmm or Thhmmss", at: tStart)
+                throw ParseError("malformed time-part in date literal — expected Thhmm or Thhmmss", at: start)
             }
             let hh = Int(tDigits.prefix(2))!
             let mi = Int(tDigits.dropFirst(2).prefix(2))!
             guard hh <= 23, mi <= 59 else {
-                throw ParseError("time-part out of range in date literal", at: tStart)
+                throw ParseError("time-part out of range in date literal", at: start)
             }
             dt.hour = hh
             dt.minute = mi
@@ -183,7 +205,7 @@ struct Parser {
             if tDigits.count == 6 {
                 let ss = Int(tDigits.suffix(2))!
                 guard ss <= 59 else {
-                    throw ParseError("seconds out of range in date literal", at: tStart)
+                    throw ParseError("seconds out of range in date literal", at: start)
                 }
                 dt.second = ss
                 spanMs = msPerSecond
@@ -198,16 +220,17 @@ struct Parser {
         switch peek() {
         case "/":
             advance()
-            return .cadence(try parseCadenceTail(anchor: first.dateTime, at: start), position: start)
+            return .cadence(try parseCadenceTail(anchor: first.dateTime), position: start)
         case ":":
             advance()
             if peek() == "*" {
                 advance()
                 return .bounds(BoundsWindow(startMs: first.spanStartMs, endMs: nil), position: start)
             }
+            let lastStart = pos
             let last = try parseDateLiteral()
             guard first.spanStartMs < last.spanEndMs else {
-                throw ParseError("backwards bounds range", at: start)
+                throw ParseError("backwards bounds range", at: lastStart)
             }
             return .bounds(BoundsWindow(startMs: first.spanStartMs, endMs: last.spanEndMs), position: start)
         default:
@@ -223,26 +246,31 @@ struct Parser {
         return unit
     }
 
-    private mutating func parseCadenceTail(anchor: NaiveDateTime, at start: Int) throws(ParseError) -> Cadence {
+    private mutating func parseCadenceTail(anchor: NaiveDateTime) throws(ParseError) -> Cadence {
+        let periodAt = pos
         let period = try readInt("cadence period")
-        guard period >= 1 else { throw ParseError("cadence period must be at least 1", at: start) }
+        guard period >= 1 else { throw ParseError("cadence period must be at least 1", at: periodAt) }
         let periodUnit = try parseCadenceUnit()
         var duration = 1
         var durationUnit = periodUnit
+        // A duration that is not smaller than its period is reported at the
+        // duration when it is written, and at the period when it is implied.
+        var durationAt = periodAt
         if peek() == "/" {
             advance()
+            durationAt = pos
             duration = try readInt("cadence duration")
-            guard duration >= 1 else { throw ParseError("cadence duration must be at least 1", at: start) }
+            guard duration >= 1 else { throw ParseError("cadence duration must be at least 1", at: durationAt) }
             durationUnit = try parseCadenceUnit()
         }
         if durationUnit.isMonthOrYear && !periodUnit.isMonthOrYear {
-            throw ParseError("month/year duration units require a month/year period", at: start)
+            throw ParseError("month/year duration units require a month/year period", at: durationAt)
         }
         // duration < period, compared conservatively with fixed unit lengths
         // (spec §5.2); same-unit comparisons are exact.
         if durationUnit == periodUnit {
             guard duration < period else {
-                throw ParseError("cadence duration must be smaller than its period", at: start)
+                throw ParseError("cadence duration must be smaller than its period", at: durationAt)
             }
         } else {
             // Max length (duration side) and min length (period side), in minutes.
@@ -267,7 +295,7 @@ struct Parser {
                 }
             }
             guard duration * maxMinutes(durationUnit) < period * minMinutes(periodUnit) else {
-                throw ParseError("cadence duration is not conservatively smaller than its period", at: start)
+                throw ParseError("cadence duration is not conservatively smaller than its period", at: durationAt)
             }
         }
         return Cadence(anchor: anchor, period: period, periodUnit: periodUnit,
@@ -276,29 +304,26 @@ struct Parser {
 
     // MARK: - Selectors
 
-    private mutating func parseSelector(_ d: Designator, at start: Int) throws(ParseError) -> Selector {
+    private mutating func parseSelector(_ d: Designator, at start: Int) throws(ParseError) -> (Selector, SelectorPlaces) {
+        var places = SelectorPlaces()
         if d == .time {
-            return Selector(designator: .time, kind: .timeSpans(try parseTimeList(at: start)), position: start)
+            return (Selector(designator: .time, kind: .timeSpans(try parseTimeList(at: start)), position: start), places)
         }
         switch peek() {
         case nil, " ", "|":
-            throw ParseError("designator '\(d.rawValue)' without a value", at: start)
+            throw ParseError("designator '\(d.rawValue)' without a value", at: pos)
         case "*" where peek(1) != ":":
             advance()
-            return Selector(designator: d, kind: .all, position: start)
+            return (Selector(designator: d, kind: .all, position: start), places)
         case "!":
             advance()
-            let items = try parseValueList(d)
-            return Selector(designator: d, kind: .exclusion(items), position: start)
+            let items = try parseValueList(d, places: &places)
+            return (Selector(designator: d, kind: .exclusion(items), position: start), places)
         default:
             break
         }
 
-        var items: [Item] = [try parseItem(d)]
-        while peek() == "," {
-            advance()
-            items.append(try parseItem(d))
-        }
+        let items = try parseValueList(d, places: &places)
 
         if peek() == "#" {
             advance()
@@ -314,21 +339,27 @@ struct Parser {
             guard (1...5).contains(abs(ord)) else {
                 throw ParseError("ordinal out of range (-5…-1, 1…5)", at: ordStart)
             }
-            return Selector(designator: d, kind: .ordinal(weekday: weekday, ordinal: ord), position: start)
+            return (Selector(designator: d, kind: .ordinal(weekday: weekday, ordinal: ord), position: start), places)
         }
 
         if peek() == "/" {
+            let slash = pos
             advance()
             guard items.count == 1 else {
-                throw ParseError("a stride attaches to a single value or range, not a list", at: pos - 1)
+                throw ParseError("a stride attaches to a single value or range, not a list", at: slash)
             }
-            return Selector(designator: d, kind: try parseStrideTail(d, item: items[0], at: start), position: start)
+            places.interval = pos
+            let kind = try parseStrideTail(d, item: items[0], place: places.items[0], slash: slash)
+            return (Selector(designator: d, kind: kind, position: start), places)
         }
 
-        return Selector(designator: d, kind: .list(items), position: start)
+        return (Selector(designator: d, kind: .list(items), position: start), places)
     }
 
-    private mutating func parseStrideTail(_ d: Designator, item: Item, at start: Int) throws(ParseError) -> SelectorKind {
+    /// The stride after the first `/` at `slash`; a start or range the stride
+    /// does not allow is reported at the `/` (spec §8).
+    private mutating func parseStrideTail(_ d: Designator, item: Item, place: (start: Int, end: Int),
+                                          slash: Int) throws(ParseError) -> SelectorKind {
         let strideStart: Int
         var strideEnd: Endpoint?
         switch item {
@@ -337,40 +368,48 @@ struct Parser {
             strideEnd = nil  // domain edge
         case .range(let s, let e, let wraps):
             guard case .value(let sv) = s else {
-                throw ParseError("stride start must be an explicit value ('*' has no anchor)", at: start)
+                throw ParseError("stride start must be an explicit value ('*' has no anchor)", at: slash)
             }
             if wraps {
-                throw ParseError("wrap ranges take no stride", at: start)
+                if d == .year {
+                    throw ParseError("backwards Y range — Y has no edge to wrap around", at: place.end)
+                }
+                throw ParseError("wrap ranges take no stride", at: slash)
             }
             strideStart = sv
             strideEnd = e
         }
         guard strideStart >= 0 else {
-            throw ParseError("stride start must be non-negative (end-relative anchors shift per parent instance)", at: start)
+            throw ParseError("stride start must be non-negative (end-relative anchors shift per parent instance)", at: slash)
         }
+        let intervalAt = pos
         let interval = try readInt("stride interval")
         var duration = 1
+        var durationAt = intervalAt
         if peek() == "/" {
             advance()
+            durationAt = pos
             duration = try readInt("stride duration")
         }
-        guard interval >= 2 else { throw ParseError("stride interval must be at least 2", at: start) }
+        guard interval >= 2 else { throw ParseError("stride interval must be at least 2", at: intervalAt) }
         guard duration >= 1, duration < interval else {
-            throw ParseError("stride duration must be 1 ≤ duration < interval", at: start)
+            throw ParseError("stride duration must be 1 ≤ duration < interval", at: durationAt)
         }
         return .stride(start: strideStart, end: strideEnd, interval: interval, duration: duration)
     }
 
-    private mutating func parseValueList(_ d: Designator) throws(ParseError) -> [Item] {
-        var items: [Item] = [try parseItem(d)]
+    private mutating func parseValueList(_ d: Designator, places: inout SelectorPlaces) throws(ParseError) -> [Item] {
+        var items: [Item] = [try parseItem(d, places: &places)]
         while peek() == "," {
             advance()
-            items.append(try parseItem(d))
+            items.append(try parseItem(d, places: &places))
         }
         return items
     }
 
-    private mutating func parseItem(_ d: Designator) throws(ParseError) -> Item {
+    /// One value or range; its value (or range start) and range end positions
+    /// go into `places`.
+    private mutating func parseItem(_ d: Designator, places: inout SelectorPlaces) throws(ParseError) -> Item {
         let start = pos
         let startPoint: Endpoint
         if peek() == "*" {
@@ -381,10 +420,14 @@ struct Parser {
             startPoint = .star
         } else {
             let v = try readSignedInt("value")
-            guard peek() == ":" else { return .single(v) }
+            guard peek() == ":" else {
+                places.items.append((start, start))
+                return .single(v)
+            }
             startPoint = .value(v)
         }
         advance()  // consume the ':' (guaranteed present in both branches)
+        places.items.append((start, pos))
         let endPoint: Endpoint
         if peek() == "*" {
             advance()
@@ -473,11 +516,12 @@ struct Parser {
                 guard !first.is2400 else {
                     throw ParseError("'2400' is valid only as a range end", at: itemStart)
                 }
+                let secondStart = pos
                 let second = try parseTimeValue(at: start)
                 let s = first.boundaryMs
                 let e = second.boundaryMs
                 guard s != e else {
-                    throw ParseError("T range with equal endpoints — half-open, it would cover nothing", at: itemStart)
+                    throw ParseError("T range with equal endpoints — half-open, it would cover nothing", at: secondStart)
                 }
                 if s > e {
                     // Midnight wrap, within each covered day (spec §4).
@@ -512,13 +556,15 @@ struct Parser {
     private mutating func assemble(_ raw: [RawComponent]) throws(ParseError) -> Expression {
         var expr = Expression()
         var seen = Set<Character>()
+        var places: [SelectorPlaces] = []
         for component in raw {
             switch component {
-            case .selector(let sel):
+            case .selector(let sel, let selPlaces):
                 guard seen.insert(sel.designator.rawValue).inserted else {
                     throw ParseError("duplicate designator '\(sel.designator.rawValue)' in one expression", at: sel.position)
                 }
                 expr.selectors.append(sel)
+                places.append(selPlaces)
             case .cadence(let cad, let position):
                 guard expr.cadence == nil else {
                     throw ParseError("more than one cadence per expression", at: position)
@@ -536,8 +582,8 @@ struct Parser {
         let scope: ScopeUnit = seen.contains("M") ? .month : seen.contains("Q") ? .quarter : seen.contains("Y") ? .year : .month
         expr.dayScope = scope
         expr.ordinalScope = scope
-        for sel in expr.selectors {
-            try validateDomains(sel, expr: expr)
+        for (sel, selPlaces) in zip(expr.selectors, places) {
+            try validateDomains(sel, places: selPlaces, expr: expr)
         }
         return expr
     }
@@ -562,46 +608,49 @@ struct Parser {
         }
     }
 
-    private func validateDomains(_ sel: Selector, expr: Expression) throws(ParseError) {
+    /// Domain checks once the scope is known; each error names the value (or
+    /// the stride interval) at fault (spec §8).
+    private func validateDomains(_ sel: Selector, places: SelectorPlaces, expr: Expression) throws(ParseError) {
         let d = sel.designator
         let limits = Parser.domainLimits(d, dayScope: expr.dayScope)
 
-        func check(_ v: Int) throws(ParseError) {
+        func check(_ v: Int, at position: Int) throws(ParseError) {
             if d == .year {
                 guard v >= 0 else {
-                    throw ParseError("negative value on Y — no edge to count back from")
+                    throw ParseError("negative value on Y — no edge to count back from", at: position)
                 }
                 // Y takes 4-digit ISO years (spec §2): 1-9999.
                 guard (1...9999).contains(v) else {
-                    throw ParseError("year \(v) out of domain (1-9999)")
+                    throw ParseError("year \(v) out of domain (1-9999)", at: position)
                 }
                 return
             }
             guard let limits else { return }
             if v == 0 && !limits.zeroBased {
-                throw ParseError("zero value on '\(d.rawValue)'")
+                throw ParseError("zero value on '\(d.rawValue)'", at: position)
             }
             if v > limits.max {
-                throw ParseError("value \(v) out of domain for '\(d.rawValue)' (max \(limits.max))")
+                throw ParseError("value \(v) out of domain for '\(d.rawValue)' (max \(limits.max))", at: position)
             }
             if v < 0 && v < -limits.count {
-                throw ParseError("negative value \(v) out of domain for '\(d.rawValue)' (symmetric check: -\(limits.count)…-1)")
+                throw ParseError("negative value \(v) out of domain for '\(d.rawValue)' (symmetric check: -\(limits.count)…-1)",
+                                 at: position)
             }
         }
 
-        func checkEndpoint(_ e: Endpoint) throws(ParseError) {
-            if case .value(let v) = e { try check(v) }
+        func checkEndpoint(_ e: Endpoint, at position: Int) throws(ParseError) {
+            if case .value(let v) = e { try check(v, at: position) }
         }
 
-        func checkItem(_ item: Item) throws(ParseError) {
+        func checkItem(_ item: Item, at place: (start: Int, end: Int)) throws(ParseError) {
             switch item {
             case .single(let v):
-                try check(v)
+                try check(v, at: place.start)
             case .range(let s, let e, let wraps):
-                try checkEndpoint(s)
-                try checkEndpoint(e)
+                try checkEndpoint(s, at: place.start)
+                try checkEndpoint(e, at: place.end)
                 if d == .year && wraps {
-                    throw ParseError("backwards Y range — Y has no edge to wrap around")
+                    throw ParseError("backwards Y range — Y has no edge to wrap around", at: place.end)
                 }
             }
         }
@@ -610,15 +659,16 @@ struct Parser {
         case .all, .timeSpans:
             break
         case .list(let items), .exclusion(let items):
-            for item in items { try checkItem(item) }
+            for (item, place) in zip(items, places.items) { try checkItem(item, at: place) }
         case .stride(let start, let end, let interval, _):
-            try check(start)
-            if let end { try checkEndpoint(end) }
+            try check(start, at: places.items[0].start)
+            if let end { try checkEndpoint(end, at: places.items[0].end) }
             if let limits, interval > limits.count {
-                throw ParseError("stride interval \(interval) exceeds the parent domain (max \(limits.count)) — use a cadence")
+                throw ParseError("stride interval \(interval) exceeds the parent domain (max \(limits.count)) — use a cadence",
+                                 at: places.interval)
             }
         case .ordinal(let weekday, _):
-            try check(weekday)
+            try check(weekday, at: places.items[0].start)
         }
     }
 }

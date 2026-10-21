@@ -42,9 +42,9 @@ A few things worth noting about how that 100% is reached:
 - `fixedDurationMs` traps on a month or year unit, which the two callers never pass (constrained-anchor arithmetic handles those). The trap is pinned by a Swift Testing exit test, which runs in a subprocess; that subprocess's coverage does not merge back into the profile (checked 2026-10-21, Swift 6.4), so the trap's message closure is the one place the profile cannot see run.
 - The `?? 0` fallback in `resolveCompatible` is a defensive default: the offset set is seeded with three probes and is never empty, so the fallback branch never runs. It is a sub-line region the line-coverage number does not flag.
 - `llvm-cov report` counts each closure as a line of its own, so its Lines column shows two uncovered lines in `Evaluator.swift`, both closures sharing a line with code that runs: the trap message above and the `?? 0` fallback. `llvm-cov show` reports no zero-count source line in any file, which is the measure this section states.
-- `llvm-cov report` shows a region/branch total slightly below 100% (~99.7%). Those are sub-line artifacts — the trap message autoclosure, the `?? 0` fallback, and the exhaustive-`switch` arms the input domain can't reach — not unexercised statements. The mutation pass covers the branch logic directly.
+- `llvm-cov report` shows a region total below 100% (97.8% on 2026-10-21). Those are sub-line artifacts — the trap message autoclosure, the `?? 0` fallback, and the exhaustive-`switch` arms the input domain can't reach — not unexercised statements. The mutation pass covers the branch logic directly.
 
-The vendored conformance vectors pass untouched.
+The vendored conformance vectors pass untouched, with every invalid vector's error position checked. The runner reads vector instants on the proleptic Gregorian calendar itself: `ISO8601DateFormatter` switches to the Julian calendar before 1582 and reads `0001-01-01T00:00:00Z` two days late.
 
 ## Mutation Testing
 
@@ -54,14 +54,14 @@ The pass here is scripted instead, and stronger for it: a driver applies spec'd 
 
 The harness and its specs sit in `Tests/mutation/`: `mutate.py`, and one spec per area, each a list of `[id, file, old, new]` where `old` must occur exactly once in the file. Each run writes `<spec>_results.json` beside its spec; those are reports, so they are not committed.
 
-Latest run (2026-09-26; `zone.json` added 2026-10-21 with `withZone`): **146 mutants, 146 killed.** Every killable survivor found in the first pass got a real behavioral test and now dies. The 13 that no test can distinguish from the original were proven equivalent and have left the specs and their results, so they are not scored as misses; their proofs stay below.
+Latest run (2026-10-21, all four specs, spec draft 3: error positions, the integer limit, the year-9999 edge, tz-database zone names): **205 mutants, 205 killed.** Every killable survivor found in a first pass got a real behavioral test and now dies. The 15 that no test can distinguish from the original were proven equivalent and have left the specs and their results, so they are not scored as misses; their proofs stay below.
 
 | Spec | Files | Mutants | Killed | Equivalents dropped |
 | --- | --- | --- | --- | --- |
-| `eval_civil.json` | `Civil`, `Evaluator` | 80 | 80 | 7 |
-| `parser.json` | `Parser` | 45 | 45 | 4 |
-| `warn_top.json` | `Warnings`, `DTRExp` | 11 | 11 | 2 |
-| `zone.json` | `DTRExp` (`withZone`, `covers`, `isIANAShaped`) | 10 | 10 | 1 |
+| `eval_civil.json` | `Civil`, `Evaluator` | 86 | 86 | 7 |
+| `parser.json` | `Parser` | 81 | 81 | 5 |
+| `warn_top.json` | `Warnings`, `DTRExp` | 14 | 14 | 2 |
+| `zone.json` | `DTRExp` (`withZone`, `covers`, `isIANAShaped`, the tz name list) | 24 | 24 | 1 |
 
 ### Killable Survivors, Now Killed
 
@@ -69,9 +69,10 @@ Each survived the first pass and is killed by a behavioral test written for it.
 
 - **Civil and Evaluator** (`BoundaryTests.swift`): `floorDiv`'s `a % b != 0` → `== 0`, `q - 1` → `q + 1`, and `floorMod`'s `r + b` → `r - b`, by the floor-arithmetic contract on negative operands; `isLeapYear`'s `y % 400 == 0` → `!= 0`, by "the last day of Feb 2000 is the 29th"; the cadence `f.month - anchor.month` → `+`, by a monthly window matching in a later month; dropping the `kEstimate - 1` iteration, by an end-of-month-anchored window found in a shorter month (`20240131/1M/2D` at 02-01); the year duration `* 12` → `* 11`, by a one-year window still covering month 12; `elapsed >= 0` → `> 0`, by the anchor instant itself being covered; `elapsed % period < duration` → `<=`, by the instant exactly at the window end being excluded.
 - **Parser** (`ParserBoundaryTests.swift`): the inclusive maxima (December; date-literal minute and second 59; time-value 23 and 59; day of month 31); month-zero rejection; an equal-length cross-unit cadence (`1W/7D` invalid); a fifteen-digit period clearing the size guard; the year domain 1…9999 (`Y1` valid, `Y0` out of domain); a stride interval equal to the domain size (`M1/12`); the full negative weekday index (`E-7`); an equal-endpoint range as a single value (`M5:5`).
+- **Draft 3** (`PositionTests.swift`, `ZoneTests.swift`, `BoundaryTests.swift`): a month window capped at the year-9999 edge, by `99991201/2M/1M` still covering January 10000; every other new mutant (positions, the integer limit, the zone list, the window caps) died on the first pass.
 - **Warnings** (`WarningBoundaryTests.swift`): the month → quarter index (`M3 Q1`, `M6 Q2` stay quiet); the Q1 length ceiling (`D92 Q1` warns); a single-value year range enumerating one year (`Y2000:2000 W53`); a single-point year stride (`Y2000:2000/2 W53`); the half-open stride boundary (`Y2003:2004/5 W53`, only 2003 on).
 
-### Dropped Equivalents (14)
+### Dropped Equivalents (15)
 
 Each is a mutant no test can distinguish, because the mutated comparison only differs on inputs the parser already excludes, or on iterations/branches that provably never run. A proven equivalent leaves the spec rather than being scored as a survivor; the id names the exact edit, so a change to that line brings it back for another look.
 
@@ -86,11 +87,12 @@ Each is a mutant no test can distinguish, because the mutated comparison only di
 | `EV59-fields-qend-oct` | `Evaluator.Fields` | `qStartMonth == 10` → `== 11` | `qStartMonth` is one of 1/4/7/10; for Q4 the else branch computes `daysFromCivil(y, 13, 1)`, and month 13 in the Howard-Hinnant formula denotes January of `y+1`, the exact value the `== 10` branch produces. |
 | `P-wrap-sv0` | `Parser` wrap detection | `start ≥ 0` → `start > 0` | A wrap needs `start > end` with `end ≥ 0`, so `start ≥ 1`; `start == 0` can never wrap and the guarded `start > end` is already false. |
 | `P-vd-negcount-lt` | `Parser` negative-domain check | `v < 0` → `v <= 0` | The conjunction `&& v < −count` is false at `v == 0` (`−count` is negative), so the extra `v == 0` case is rejected by the second operand anyway. |
+| `P-vd-single-at` | `Parser` domain check of a single value | `place.start` → `place.end` | A single value is recorded with its start as its end (`(start, start)`), so both name the same offset. |
 | `P-tl-wrap` | `Parser` time wrap split | `s > e` → `s >= e` | Equal endpoints are rejected two lines earlier by `guard s != e`, so `s == e` never reaches this comparison. |
 | `P-tl-e0` | `Parser` wrap low-span | `e > 0` → `e >= 0` | At `e == 0` the mutant appends a `[0, 0)` span, which is empty and matches no instant; identical coverage. |
 | `W-concyears-range<lim` | `Warnings` year enumeration | `b − a < limit` → `<= limit` | The 1000-year cap only chooses enumerate-vs-fallback; across any span that large every week-year length (52, 53) and day-year length (365, 366) occurs, so the enumerated domain equals the fallback domain and the warnings are identical. |
 | `W-concyears-stridelim` | `Warnings` year stride enumeration | `end − start < limit` → `<= limit` | Same reasoning for the stride span. |
 
-| `Z-iana-guard` | `DTRExp.ianaZone` | `isIANAShaped(id) ? TimeZone(identifier: id) : nil` → `TimeZone(identifier: id)` | On macOS, Foundation already returns `nil` for every name the check refuses (`localtime`, `posix/localtime`, `./localtime`, `Europe/./Berlin`, `Europe//Berlin`, `/UTC`, `Europe/`; probed 2026-10-21), so the guard changes nothing there. It exists for Linux, whose Foundation reads such paths from the zoneinfo folder; the check itself is killed directly through `isIANAShaped`. |
+| `Z-iana-guard` | `DTRExp.ianaZone` | drop the `isIANAShaped(identifier)` condition | Every name the shape check refuses (`localtime`, `posix/localtime`, `./localtime`, `Europe/./Berlin`, `Europe//Berlin`, `/UTC`, `Europe/`) is also missing from the tz name list the lookup goes through, so the guard changes no answer; it stays as a second line against path-shaped names. The check itself is killed directly through `isIANAShaped`. |
 
-The exact edit behind each of the first thirteen is in its spec as of 7ffbcf1, the last commit that carried it.
+The exact edit behind each of the first thirteen is in its spec as of 7ffbcf1, the last commit that carried it; `P-vd-single-at` is spelled out in its row.

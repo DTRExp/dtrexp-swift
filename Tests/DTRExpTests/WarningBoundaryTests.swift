@@ -51,4 +51,17 @@ struct WarningBoundaryTests {
     func stridedYearDurationBoundary() throws {
         #expect(try warns("Y2003:2004/5 W53"))  // only 2003 (52 weeks) is on
     }
+
+    // Years are 1-9999: an exclusion of all of them warns, one that leaves a
+    // year at either edge stays quiet.
+
+    @Test("a year exclusion warns only when it excludes every year")
+    func fullYearExclusion() throws {
+        for source in ["Y!1:9999", "Y!*:*", "Y!1:5000,5001:9999", "Y!*:2020,2021:*"] {
+            #expect(try warns(source), "\(source)")
+        }
+        for source in ["Y!1:9998", "Y!2:*", "Y!2020", "Y2020:*", "Y1:9999"] {
+            #expect(!(try warns(source)), "\(source)")
+        }
+    }
 }

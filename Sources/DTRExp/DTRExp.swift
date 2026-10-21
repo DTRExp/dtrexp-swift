@@ -1,7 +1,7 @@
 import Foundation
 
 /// A parsed DTRExp — a compact date-time range & recurrence expression
-/// (spec draft 2.9), evaluated for **coverage**: "is this instant inside the
+/// (spec draft 3), evaluated for **coverage**: "is this instant inside the
 /// denoted set of intervals?"
 ///
 /// ```swift
@@ -81,9 +81,11 @@ public struct DTRExp: Sendable {
 
     /// A copy of the expression whose evaluation defaults to the zone named by
     /// the IANA identifier; see ``withZone(_:)-(TimeZone)``. The identifier is
-    /// checked here, at once: an unknown or empty one throws
-    /// ``EvaluationError/unknownTimeZone(_:)``, so binding never falls back to
-    /// UTC or the host's zone.
+    /// a zone or link name of the tz database, matched without regard to case
+    /// (`europe/berlin` binds `Europe/Berlin`). It is checked here, at once:
+    /// anything else, a fixed offset (`UTC+2`), `Z` and an empty name
+    /// included, throws ``EvaluationError/unknownTimeZone(_:)``, so binding
+    /// never falls back to UTC or the host's zone.
     public func withZone(_ identifier: String) throws -> DTRExp {
         guard let zone = Self.ianaZone(identifier) else {
             throw EvaluationError.unknownTimeZone(identifier)
@@ -102,7 +104,7 @@ public struct DTRExp: Sendable {
 
     /// Whether `instant` lies inside the expression's covered set, evaluated
     /// in the zone named by the IANA identifier `tz`, which wins over the
-    /// bound ``zone``.
+    /// bound ``zone``. The identifier is matched as in ``withZone(_:)-(String)``.
     /// Throws ``EvaluationError/unknownTimeZone(_:)`` for an unknown identifier.
     public func covers(_ instant: Date, tz identifier: String) throws -> Bool {
         guard let zone = Self.ianaZone(identifier) else {
@@ -113,9 +115,55 @@ public struct DTRExp: Sendable {
 
     private static let utc = TimeZone(identifier: "UTC")!
 
-    /// The zone an IANA identifier names, or `nil`.
+    /// The zone an IANA identifier names, or `nil`: the identifier is looked
+    /// up in the tz database's own names without regard to case, and the
+    /// zone is loaded by the database's spelling of it.
     private static func ianaZone(_ identifier: String) -> TimeZone? {
-        isIANAShaped(identifier) ? TimeZone(identifier: identifier) : nil
+        guard isIANAShaped(identifier), let name = zoneNames[identifier.lowercased()] else { return nil }
+        return TimeZone(identifier: name)
+    }
+
+    /// The tz database's zone and link names, keyed by their lowercase
+    /// spelling. Foundation looks a name up as a file, so its answer would
+    /// otherwise depend on whether the file system ignores case, and it also
+    /// takes names that are no zone (`UTC+2`, `Factory`).
+    static let zoneNames = zoneNames(from: tzDatabaseNames())
+
+    /// `names` keyed by their lowercase spelling, without the ones that name
+    /// no zone; `UTC` is always among them.
+    static func zoneNames(from names: [String]) -> [String: String] {
+        var byLowercase: [String: String] = ["utc": "UTC"]
+        for name in names where !isNotAZone(name) {
+            byLowercase[name.lowercased()] = name
+        }
+        return byLowercase
+    }
+
+    /// Every zone (`Z`) and link (`L`) name in the tz source file `tzdata.zi`
+    /// that ships beside the compiled zones; Foundation's own list where the
+    /// file is missing, though that list leaves out the links.
+    static func tzDatabaseNames(source path: String = "/usr/share/zoneinfo/tzdata.zi") -> [String] {
+        guard let text = try? String(contentsOfFile: path, encoding: .utf8) else {
+            return TimeZone.knownTimeZoneIdentifiers
+        }
+        var names: [String] = []
+        for line in text.split(separator: "\n") {
+            let fields = line.split(separator: " ")
+            if fields.count > 1 && fields[0] == "Z" {
+                names.append(String(fields[1]))
+            } else if fields.count > 2 && fields[0] == "L" {
+                names.append(String(fields[2]))
+            }
+        }
+        return names
+    }
+
+    /// A file of the zoneinfo folder that names no zone of the tz database:
+    /// `localtime` can be the host's own zone, and `posix/`, `right/` and
+    /// `SystemV/` are copies or leftovers of the database.
+    static func isNotAZone(_ name: String) -> Bool {
+        let folder = name.split(separator: "/").first.map(String.init) ?? ""
+        return ["Factory", "localtime", "posixrules"].contains(name) || ["SystemV", "posix", "right"].contains(folder)
     }
 
     /// Whether `identifier` can be an IANA name at all. Some systems link

@@ -28,7 +28,6 @@
 ["CIV28-daysinyear-366-365","Civil.swift","isLeapYear(y) ? 366 : 365","isLeapYear(y) ? 365 : 366"],
 ["CIV29-addmonths-min","Civil.swift","out.day = min(day, daysInMonth(y, m))","out.day = max(day, daysInMonth(y, m))"],
 ["CIV30-addmonths-floormod+1","Civil.swift","let m = floorMod(total, 12) + 1","let m = floorMod(total, 12) + 2"],
-
 ["EV1-resolve-raw<0<=","Evaluator.swift","raw < 0 ? hi + 1 + raw : raw","raw <= 0 ? hi + 1 + raw : raw"],
 ["EV2-resolve-hi+1+2","Evaluator.swift","raw < 0 ? hi + 1 + raw : raw","raw < 0 ? hi + 2 + raw : raw"],
 ["EV3-wrap-v>=sv>","Evaluator.swift","return v >= sv || v <= ev","return v > sv || v <= ev"],
@@ -63,7 +62,7 @@
 ["EV38-cad-my->=start>","Evaluator.swift","if f.naiveMs >= startMs && f.naiveMs < endMs","if f.naiveMs > startMs && f.naiveMs < endMs"],
 ["EV39-cad-my-<end<=","Evaluator.swift","f.naiveMs < endMs { return true }","f.naiveMs <= endMs { return true }"],
 ["EV40-cad-my-&&||","Evaluator.swift","if f.naiveMs >= startMs && f.naiveMs < endMs","if f.naiveMs >= startMs || f.naiveMs < endMs"],
-["EV41-cad-my-dur*12*11","Evaluator.swift","addingMonthsConstrained(c.duration * 12).naiveMs","addingMonthsConstrained(c.duration * 11).naiveMs"],
+["EV41-cad-my-dur*12*11","Evaluator.swift","windowEndMs(start.addingMonthsConstrained(c.duration * 12))","windowEndMs(start.addingMonthsConstrained(c.duration * 11))"],
 ["EV42-cad-hm-==hour!=","Evaluator.swift","c.periodUnit == .hour ? msPerHour : msPerMinute","c.periodUnit != .hour ? msPerHour : msPerMinute"],
 ["EV43-cad-hm-elapsed>=>","Evaluator.swift","guard elapsed >= 0 else { return false }","guard elapsed > 0 else { return false }"],
 ["EV44-cad-hm-%<dur<=","Evaluator.swift","return elapsed % periodMs < fixedDurationMs(c.duration, c.durationUnit)","return elapsed % periodMs <= fixedDurationMs(c.duration, c.durationUnit)"],
@@ -79,5 +78,11 @@
 ["EV55-fields-doq+1","Evaluator.swift","dayOfQuarter = dayNumber - qStartDay + 1","dayOfQuarter = dayNumber - qStartDay + 2"],
 ["EV56-fields-minute%60%61","Evaluator.swift","minute = (msOfDay / msPerMinute) % 60","minute = (msOfDay / msPerMinute) % 61"],
 ["EV57-fields-hour-div","Evaluator.swift","hour = msOfDay / msPerHour","hour = msOfDay % msPerHour"],
-["EV58-fields-qstartmonth","Evaluator.swift","let qStartMonth = ((mo - 1) / 3) * 3 + 1","let qStartMonth = ((mo - 1) / 3) * 3 + 2"]
+["EV58-fields-qstartmonth","Evaluator.swift","let qStartMonth = ((mo - 1) / 3) * 3 + 1","let qStartMonth = ((mo - 1) / 3) * 3 + 2"],
+["EV-end-edge>=","Evaluator.swift","end.year > 9999 ? Int.max","end.year >= 9999 ? Int.max"],
+["EV-end-edge-10000","Evaluator.swift","end.year > 9999 ? Int.max","end.year > 10000 ? Int.max"],
+["EV-end-month-nocap","Evaluator.swift","windowEndMs(start.addingMonthsConstrained(c.duration))","start.addingMonthsConstrained(c.duration).naiveMs"],
+["EV-end-year-nocap","Evaluator.swift","windowEndMs(start.addingMonthsConstrained(c.duration * 12))","start.addingMonthsConstrained(c.duration * 12).naiveMs"],
+["EV-sat-keep","Evaluator.swift","return overflow ? Int.max : sum","return overflow ? sum : sum"],
+["EV-sat-dw","Evaluator.swift","let end = addingSaturated(start, fixedDurationMs(c.duration, c.durationUnit))","let end = start + fixedDurationMs(c.duration, c.durationUnit)"]
 ]

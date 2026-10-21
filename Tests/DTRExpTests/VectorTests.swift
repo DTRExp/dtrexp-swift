@@ -3,7 +3,8 @@ import Testing
 @testable import DTRExp
 
 // Conformance runner over vectors.json (spec §12): every `invalid` expression
-// must throw at parse; every `warnings` expression must parse while reporting
+// must throw at parse, positioned where the vector says (spec §8: a 0-based
+// offset in Unicode code points); every `warnings` expression must parse while reporting
 // a warning; every `quiet` expression must parse with NO warnings; every
 // instant in every `coverage` group must return the expected boolean under
 // the group's tz.
@@ -26,6 +27,7 @@ private struct CoverageGroup: Decodable {
 private struct InvalidCase: Decodable {
     let expression: String
     let reason: String
+    let position: Int
 }
 
 private struct WarningCase: Decodable {
@@ -43,24 +45,34 @@ private func loadVectors() throws -> VectorFile {
     return try JSONDecoder().decode(VectorFile.self, from: Data(contentsOf: url))
 }
 
+/// A vector instant, `YYYY-MM-DDThh:mm:ss[.sss]Z`, on the proleptic Gregorian
+/// calendar. ISO8601DateFormatter switches to the Julian calendar before
+/// 1582, which puts `0001-01-01T00:00:00Z` two days late.
 private func parseInstant(_ s: String) -> Date? {
-    let fractional = ISO8601DateFormatter()
-    fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    let plain = ISO8601DateFormatter()
-    return fractional.date(from: s) ?? plain.date(from: s)
+    guard s.hasSuffix("Z") else { return nil }
+    let dateTime = s.dropLast().split(separator: "T")
+    guard dateTime.count == 2 else { return nil }
+    let ymd = dateTime[0].split(separator: "-").compactMap { Int($0) }
+    let hms = dateTime[1].split(separator: ":")
+    guard ymd.count == 3, hms.count == 3, let h = Int(hms[0]), let mi = Int(hms[1]),
+          let sec = Double(hms[2]) else { return nil }
+    let wholeSeconds = daysFromCivil(ymd[0], ymd[1], ymd[2]) * 86_400 + h * 3600 + mi * 60
+    return Date(timeIntervalSince1970: Double(wholeSeconds) + sec)
 }
 
 @Suite("Conformance vectors")
 struct ConformanceVectors {
 
-    @Test("invalid expressions are rejected at parse")
+    @Test("invalid expressions are rejected at parse, at the vector's position")
     func invalidExpressions() throws {
         let vectors = try loadVectors()
         #expect(!vectors.invalid.isEmpty)
         for c in vectors.invalid {
-            #expect(throws: ParseError.self, "'\(c.expression)' should be rejected: \(c.reason)") {
+            let error = #expect(throws: ParseError.self, "'\(c.expression)' should be rejected: \(c.reason)") {
                 _ = try DTRExp(c.expression)
             }
+            #expect(error?.position == c.position,
+                    "'\(c.expression)' (\(c.reason)): expected position \(c.position), got \(String(describing: error))")
         }
     }
 

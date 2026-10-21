@@ -2,7 +2,7 @@
 //  - per-selector satisfiability against the set of domain sizes implied by
 //    co-present selectors (catches `D30 M2`, `W53` under fixed 52-week years,
 //    statically-empty non-wrap ranges like `D-1:5` / `M-2:2`),
-//  - full-domain exclusions (`M!1:12`),
+//  - full-domain exclusions (`M!1:12`, and `Y!1:9999` over the finite years),
 //  - `M` ∩ `Q` disjointness (`M-1 Q1`),
 //  - warnings from every `|` branch surface on the whole expression.
 
@@ -97,8 +97,13 @@ private func branchWarnings(_ expr: Expression) -> [Warning] {
         // Possible (lo, hi) domain instances implied by co-present selectors.
         var domains: [(lo: Int, hi: Int)]
         switch sel.designator {
-        case .year, .time:
-            continue  // unbounded / validated at parse; never statically empty
+        case .time:
+            continue  // validated at parse; never statically empty
+        case .year:
+            // Years are 1-9999 and every listed one is in domain, so only an
+            // exclusion of all of them is statically empty (`Y!1:9999`).
+            guard case .exclusion = sel.kind else { continue }
+            domains = [(1, 9999)]
         case .quarter: domains = [(1, 4)]
         case .month: domains = [(1, 12)]
         case .weekday:

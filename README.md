@@ -57,15 +57,21 @@ Note that you parse **once** (at write/config time) and evaluate **many**; a `DT
 
 **Which to use:** bind the zone with `withZone(_:)` when it belongs to what the expression describes (a store's hours, a venue's schedule), and pass the zone per call when it belongs to whoever is asking (a rule shown to each user in their own zone). A bound copy shares its `source` with the original, so a cache of parsed expressions keys on `source` and `zone` together.
 
+### Time Zones
+
+An identifier is one of the tz database's zone and link names (`Europe/Berlin`, `US/Eastern`, `UTC`, `Etc/GMT+5`), matched without regard to case: `europe/berlin` works, and `withZone("europe/berlin").zone?.identifier` is `"Europe/Berlin"`. The names come from the tz source file that ships beside the compiled zones (`/usr/share/zoneinfo/tzdata.zi`; Foundation's `TimeZone.knownTimeZoneIdentifiers` where the file is missing, though that list leaves out the links), so the answer never depends on whether the file system ignores case. Anything else is an unknown zone, even where Foundation would take it: a fixed offset (`+02:00`, `UTC+2`), `Z`, the zoneinfo files that name no zone (`posixrules`, `Factory`, `localtime`, `SystemV/*`, the `posix/` and `right/` copies) and the empty name.
+
+The zone rules are Foundation's, read from the system's tz database: on Apple platforms the one the OS release ships, on Linux the `/usr/share/zoneinfo` of the system's `tzdata` package. Two machines agree wherever their tz releases agree; to pin a release, pin the OS or the `tzdata` package.
+
 ## Errors and Warnings
 
-An error and a warning each carry a **position**; the 0-based character offset into the source, when known:
+An error and a warning each carry a **position**. An error's position is the 0-based offset, in Unicode code points (not `Character`s), of the first character of the token at fault, as [spec §8](https://github.com/DTRExp/dtrexp/blob/main/spec.md#8-grammar-ebnf) defines it; the same in every DTRExp implementation:
 
 ```swift
 do {
     _ = try DTRExp("Y*/3")             // anchorless stride — a syntax error
 } catch let error {                    // typed catch — error is a ParseError
-    error.position                     // points at the offending character
+    error.position                     // 2: the '/' the anchorless start does not allow
 }
 
 let result = DTRExp.validate("D30 M2") // never throws
@@ -73,15 +79,15 @@ result.valid                           // true — it parses
 result.warnings                        // [Warning] — no February has 30 days
 ```
 
-- `DTRExp(_:)` and `DTRExp.parse(_:)` return the parsed value or throw a `ParseError` (*message* `String`, *position* `Int?`). Both are typed as `throws(ParseError)`.
+- `DTRExp(_:)` and `DTRExp.parse(_:)` return the parsed value or throw a `ParseError` (*message* `String`, *position* `Int?`, always set). Both are typed as `throws(ParseError)`. An integer is at most 2,147,483,647 (leading zeros are free: `M0000000003` is `M3`); a larger one is a syntax error at that integer, never a trap at evaluation.
 - `DTRExp.validate(_:)` never throws; typo-shaped input comes back as data. Returns a `ValidationResult` with *valid* `Bool`, *errors* `[ParseError]` (parsing stops at the first syntax error, so at most one) and *warnings* `[Warning]`.
 - Warnings are the spec's [§9.1](https://github.com/DTRExp/dtrexp/blob/main/spec.md#91-the-existence-rule) unsatisfiability lint: expressions that parse but can never match. The parsed value's `warnings` property and `validate(_:).warnings` carry the same content.
-- `covers(_:tz:)` throws an `EvaluationError` for an unknown IANA identifier. The zone-typed `covers(_:timeZone:)` cannot fail; its default (`nil`) is the bound `zone`, else UTC, and a zone passed to either call wins over the bound one.
+- `covers(_:tz:)` throws an `EvaluationError` for an unknown IANA identifier (see Time Zones above). The zone-typed `covers(_:timeZone:)` cannot fail; its default (`nil`) is the bound `zone`, else UTC, and a zone passed to either call wins over the bound one.
 - `withZone(_:)` returns a copy whose evaluation defaults to that zone, readable as `zone` (`TimeZone?`, `nil` when unbound); its `source` and `warnings` are the original's. The `TimeZone` form cannot fail; the identifier form throws `EvaluationError.unknownTimeZone` at once for an unknown or empty identifier, so binding never falls back to UTC or the host's zone.
 
 ## Conformance & Quality
 
-- The test suite is driven by the shared [`vectors.json`][vectors] from the spec repo (the draft 2.8 file; draft 2.9 left the Core vectors unchanged), vendored at `Tests/DTRExpTests/Resources/vectors.json`: every coverage, rejection, warning and quiet vector, including the calendar traps (Feb 29 across 2000/2024/**2100**, `W53` existence, DST gap/overlap in `Europe/Berlin`). Run the suite with `swift test`. See [VECTORS.md][vectors-md] for how the vectors are structured.
+- The test suite is driven by the shared [`vectors.json`][vectors] from the spec repo (the draft 3 file), vendored at `Tests/DTRExpTests/Resources/vectors.json`: every coverage, rejection (at its pinned position), warning and quiet vector, including the calendar traps (Feb 29 across 2000/2024/**2100**, `W53` existence, DST gap/overlap in `Europe/Berlin`). Run the suite with `swift test`. See [VECTORS.md][vectors-md] for how the vectors are structured.
 - 100% line coverage, and mutation-tested by a scripted exit-code harness; Swift's standard tool ([muter][muter]) is unmaintained and cannot rewrite current Swift or read a Swift Testing suite, so the pass applies the classic mutant classes itself and treats any nonzero `swift test` exit as a kill, framework-free. Tally, commands and per-survivor equivalence proofs: [TESTING.md](TESTING.md).
 - Zero dependencies.
 

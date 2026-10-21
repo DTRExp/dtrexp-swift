@@ -196,7 +196,7 @@ func cadenceCovers(_ c: Cadence, fields f: Fields, timeZone: TimeZone) -> Bool {
         guard delta >= 0 else { return false }
         let k = delta / periodMs
         let start = anchorMs + k * periodMs
-        let end = start + fixedDurationMs(c.duration, c.durationUnit)
+        let end = addingSaturated(start, fixedDurationMs(c.duration, c.durationUnit))
         return f.naiveMs < end
 
     case .month, .year:
@@ -210,8 +210,8 @@ func cadenceCovers(_ c: Cadence, fields f: Fields, timeZone: TimeZone) -> Bool {
             let startMs = start.naiveMs
             let endMs: Int
             switch c.durationUnit {
-            case .month: endMs = start.addingMonthsConstrained(c.duration).naiveMs
-            case .year: endMs = start.addingMonthsConstrained(c.duration * 12).naiveMs
+            case .month: endMs = windowEndMs(start.addingMonthsConstrained(c.duration))
+            case .year: endMs = windowEndMs(start.addingMonthsConstrained(c.duration * 12))
             default: endMs = startMs + fixedDurationMs(c.duration, c.durationUnit)
             }
             if f.naiveMs >= startMs && f.naiveMs < endMs { return true }
@@ -226,6 +226,23 @@ func cadenceCovers(_ c: Cadence, fields f: Fields, timeZone: TimeZone) -> Bool {
         guard elapsed >= 0 else { return false }
         return elapsed % periodMs < fixedDurationMs(c.duration, c.durationUnit)
     }
+}
+
+/// `a + b`, held at `Int.max` rather than overflowing: a window end past
+/// every instant. Counts are at most 2,147,483,647 (spec §8), so a fixed
+/// duration fits in the millisecond count, and so does its sum with any start
+/// in years 1-9999; only an instant hundreds of millions of years out can
+/// take the sum past `Int.max`.
+func addingSaturated(_ a: Int, _ b: Int) -> Int {
+    let (sum, overflow) = a.addingReportingOverflow(b)
+    return overflow ? Int.max : sum
+}
+
+/// A month/year window's end in naive ms. An end past year 9999 lies beyond
+/// the timeline, so the window runs to its edge; this also keeps a duration
+/// of up to 2,147,483,647 years from overflowing the millisecond count.
+func windowEndMs(_ end: NaiveDateTime) -> Int {
+    end.year > 9999 ? Int.max : end.naiveMs
 }
 
 /// Resolves a naive local date-time to an absolute instant using Temporal's

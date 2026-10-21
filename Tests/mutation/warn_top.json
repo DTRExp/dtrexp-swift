@@ -9,5 +9,8 @@
 ["W-covered-loop","Warnings.swift","for v in lo...hi where kindMatches(kind, value: v, lo: lo, hi: hi) {","for v in lo..<hi where kindMatches(kind, value: v, lo: lo, hi: hi) {"],
 ["W-disjoint","Warnings.swift","if reachableQuarters.isDisjoint(with: quarterSet) {","if !reachableQuarters.isDisjoint(with: quarterSet) {"],
 ["D-covers-contains","DTRExp.swift","return branches.contains { expressionCovers($0, fields: fields, timeZone: timeZone) }","return branches.allSatisfy { expressionCovers($0, fields: fields, timeZone: timeZone) }"],
-["D-validate-valid","DTRExp.swift","return ValidationResult(valid: true, errors: [], warnings: expression.warnings)","return ValidationResult(valid: false, errors: [], warnings: expression.warnings)"]
+["D-validate-valid","DTRExp.swift","return ValidationResult(valid: true, errors: [], warnings: expression.warnings)","return ValidationResult(valid: false, errors: [], warnings: expression.warnings)"],
+["W-year-max","Warnings.swift","domains = [(1, 9999)]","domains = [(1, 9998)]"],
+["W-year-min","Warnings.swift","domains = [(1, 9999)]","domains = [(2, 9999)]"],
+["W-year-skip","Warnings.swift","guard case .exclusion = sel.kind else { continue }\n            domains = [(1, 9999)]","continue"]
 ]

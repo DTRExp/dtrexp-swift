@@ -122,9 +122,10 @@ struct ParserRejectionTests {
         catch { return error.message }
     }
 
-    @Test("an over-long integer literal is rejected before the domain check")
+    @Test("an integer above the limit is rejected before the domain check")
     func integerTooLarge() {
-        #expect(message("M1234567890123456") == "value is too large")
+        #expect(message("M1234567890123456") == "integer 1234567890123456 is above the limit of 2147483647")
+        #expect(message("M-0002147483648") == "integer 2147483648 is above the limit of 2147483647")
     }
 
     @Test("a bare '*' component must open a '*:<date>' bounds range")

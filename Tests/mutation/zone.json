@@ -8,5 +8,19 @@
 ["Z-shape-nodot","DTRExp.swift","{ $0.isEmpty || $0 == \".\" }","{ $0.isEmpty }"],
 ["Z-shape-and","DTRExp.swift","} && segments.last != \"localtime\"","} || segments.last != \"localtime\""],
 ["Z-shape-last","DTRExp.swift","segments.last != \"localtime\"","segments.last == \"localtime\""],
-["Z-shape-split","DTRExp.swift","omittingEmptySubsequences: false","omittingEmptySubsequences: true"]
+["Z-shape-split","DTRExp.swift","omittingEmptySubsequences: false","omittingEmptySubsequences: true"],
+["Z-lookup-case","DTRExp.swift","zoneNames[identifier.lowercased()]","zoneNames[identifier]"],
+["Z-key-case","DTRExp.swift","byLowercase[name.lowercased()] = name","byLowercase[name] = name"],
+["Z-utc-seed","DTRExp.swift","[\"utc\": \"UTC\"]","[:]"],
+["Z-filter","DTRExp.swift","where !isNotAZone(name)","where isNotAZone(name)"],
+["Z-src-zcount","DTRExp.swift","fields.count > 1 && fields[0] == \"Z\"","fields.count > 0 && fields[0] == \"Z\""],
+["Z-src-z","DTRExp.swift","fields[0] == \"Z\"","fields[0] == \"R\""],
+["Z-src-lcount","DTRExp.swift","fields.count > 2 && fields[0] == \"L\"","fields.count > 1 && fields[0] == \"L\""],
+["Z-src-lname","DTRExp.swift","names.append(String(fields[2]))","names.append(String(fields[1]))"],
+["Z-src-fallback","DTRExp.swift","return TimeZone.knownTimeZoneIdentifiers","return []"],
+["Z-notzone-names","DTRExp.swift","[\"Factory\", \"localtime\", \"posixrules\"].contains(name)","[\"Factory\", \"localtime\"].contains(name)"],
+["Z-notzone-folders","DTRExp.swift","[\"SystemV\", \"posix\", \"right\"].contains(folder)","[\"SystemV\", \"posix\"].contains(folder)"],
+["Z-notzone-or","DTRExp.swift",".contains(name) || [\"SystemV\"",".contains(name) && [\"SystemV\""],
+["Z-notzone-first","DTRExp.swift","split(separator: \"/\").first","split(separator: \"/\").last"],
+["Z-load-canonical","DTRExp.swift","return TimeZone(identifier: name)","return TimeZone(identifier: identifier)"]
 ]

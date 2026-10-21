@@ -48,10 +48,19 @@ struct ParserBoundaryTests {
     @Test("a seven-day duration is not smaller than a one-week period")
     func durationEqualsPeriodCrossUnit() { #expect(!valid("20240101/1W/7D")) }
 
-    // A very large but in-range integer clears the overflow guard and is then
-    // judged on its domain, not rejected as too large.
-    @Test("a fifteen-digit period clears the size guard")
-    func fifteenDigitPeriod() { #expect(valid("20240101/100000000000000D")) }
+    // An integer at the limit clears the guard and is then judged on its
+    // domain; one above it is a syntax error at that integer (spec §8).
+    @Test("an integer at the limit clears the guard, one above it does not")
+    func integerLimit() {
+        #expect(valid("20240101/2147483647D"))
+        #expect(valid("20240101/0000000000002147483647D"))
+        #expect(!valid("20240101/2147483648D"))
+        #expect(!valid("20240101/2147483650D"))
+        #expect(!valid("20240101/9999999999D"))
+        #expect(!valid("20240101/10000000000D"))
+        #expect(valid("20240101/999999999D"))
+        #expect(message("M2147483647") == "value 2147483647 out of domain for 'M' (max 12)")
+    }
 
     // Year domain is 1…9999 inclusive at both ends.
 

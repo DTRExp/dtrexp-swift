@@ -96,3 +96,72 @@ struct WithZoneTests {
         #expect(!(try DTRExp("D30 M2").withZone(berlinZone).warnings.isEmpty))
     }
 }
+
+// Zone identifiers (API.md): the tz database's zone and link names, matched
+// without regard to case and bound in the database's spelling; anything else
+// is an unknown zone.
+
+@Suite("Zone identifiers")
+struct ZoneIdentifierTests {
+
+    @Test("a tz name matches in any case and binds the database's spelling",
+          arguments: [("europe/berlin", "Europe/Berlin"), ("EUROPE/BERLIN", "Europe/Berlin"),
+                      ("us/eastern", "US/Eastern"), ("etc/gmt+5", "Etc/GMT+5"), ("asia/TOKYO", "Asia/Tokyo")])
+    func anyCase(_ id: String, _ canonical: String) throws {
+        let bound = try DTRExp(hours).withZone(id)
+        #expect(bound.zone?.identifier == canonical)
+        #expect(DTRExp.zoneNames[id.lowercased()] == canonical)
+    }
+
+    @Test("a lowercase name evaluates in its zone")
+    func lowercaseEvaluates() throws {
+        #expect(try DTRExp(hours).covers(t, tz: "europe/berlin"))  // 09:30 Berlin
+        #expect(!(try DTRExp(hours).covers(t, tz: "utc")))
+    }
+
+    @Test("anything but a tz name is an unknown zone",
+          arguments: ["+02:00", "UTC+2", "GMT+2", "Z", "posixrules", "Factory", "localtime", "SystemV/AST4",
+                      "posix/Europe/Berlin", "right/UTC", "", "Mars/Olympus", "Europe/Berlin ", "GMT+0200"])
+    func notAZone(_ id: String) throws {
+        let expr = try DTRExp(hours)
+        #expect {
+            _ = try expr.withZone(id)
+        } throws: { error in
+            (error as? EvaluationError)?.description == "unknown IANA time zone identifier '\(id)'"
+        }
+        #expect(throws: EvaluationError.self) { _ = try expr.covers(t, tz: id) }
+    }
+
+    @Test("the names come from the tz source: its zones and links, without the files that name no zone")
+    func tzSource() throws {
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent("dtrexp-tzdata-\(UUID()).zi").path
+        let source = """
+            # version test
+            R d 1916 o - Jun 14 23s 1 S
+            Z Europe/Berlin 0:53:28 - LMT 1893 Ap
+            Z Factory 0 - -00
+            L Europe/Berlin Europe/Busingen
+            L Etc/UTC UTC
+            Z
+            L Etc/UTC
+            """
+        try source.write(toFile: path, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        #expect(DTRExp.tzDatabaseNames(source: path) == ["Europe/Berlin", "Factory", "Europe/Busingen", "UTC"])
+        #expect(DTRExp.tzDatabaseNames(source: path + ".missing") == TimeZone.knownTimeZoneIdentifiers)
+    }
+
+    @Test("files of the zoneinfo folder that name no zone are filtered out")
+    func notZones() {
+        for name in ["Factory", "localtime", "posixrules", "SystemV/AST4", "posix/Europe/Berlin", "right/UTC"] {
+            #expect(DTRExp.isNotAZone(name), "\(name)")
+        }
+        for name in ["Europe/Berlin", "UTC", "Etc/GMT+5", "US/Eastern", "Posix", "America/Argentina/Buenos_Aires", ""] {
+            #expect(!DTRExp.isNotAZone(name), "\(name)")
+        }
+        #expect(DTRExp.zoneNames["factory"] == nil)
+        #expect(DTRExp.zoneNames["utc"] == "UTC")
+        #expect(DTRExp.zoneNames(from: ["Europe/Berlin", "Factory", "posix/Asia/Tokyo"])
+                == ["utc": "UTC", "europe/berlin": "Europe/Berlin"])
+    }
+}

@@ -105,3 +105,48 @@ struct SubDailyCadenceTests {
         #expect(!(try expr.covers(at("2024-01-01T00:30:00Z"), tz: "UTC")))
     }
 }
+
+// Counts meet dates: with integers bounded at 2,147,483,647 (spec §8) a count
+// in milliseconds fits an Int, and a window end that would pass the timeline's
+// edge (year 9999) or the Int range is held there instead of overflowing.
+
+@Suite("Cadence arithmetic at the edges")
+struct CadenceEdgeTests {
+
+    @Test("a window whose end passes year 9999 runs to the edge",
+          arguments: [("99990101/2Y/1Y", "9999-12-31T23:59:59Z", true),
+                      ("99980101/2Y/1Y", "9999-06-01T00:00:00Z", false),
+                      ("99991215/1M/20D", "9999-12-31T23:59:59Z", true),
+                      ("00010101/2D", "9999-12-31T23:59:59Z", true),
+                      ("20200101/2147483647Y/2147483646Y", "9999-12-31T23:59:59Z", true),
+                      ("20200101/2147483647Y/2147483646Y", "2019-12-31T23:59:59Z", false),
+                      ("20200101/2147483647M/2147483646M", "9999-12-31T23:59:59Z", true),
+                      ("20200101/2147483647W/2147483646W", "9999-12-31T23:59:59Z", true),
+                      ("20200101/2147483647m/2147483646m", "6103-01-24T02:05:00Z", true),
+                      ("20200101/2147483647m/2147483646m", "6103-01-24T02:06:00Z", false)])
+    func pastTheEdge(_ source: String, _ iso: String, _ expected: Bool) throws {
+        #expect(try DTRExp(source).covers(at(iso)) == expected, "\(source) @ \(iso)")
+    }
+
+    @Test("past year 9999 a capped window keeps covering")
+    func beyondTheEdge() throws {
+        // Outside years 1-9999 the answer is the implementation's (spec §3.1):
+        // here a window capped at the edge goes on covering.
+        let year10000 = Date(timeIntervalSince1970: 253_415_433_600)  // 10000-06-01T00:00:00Z
+        #expect(try DTRExp("99990101/2Y/1Y").covers(year10000))
+        let january10000 = Date(timeIntervalSince1970: 253_403_510_400)  // 10000-01-15T00:00:00Z
+        #expect(try DTRExp("99991201/2M/1M").covers(january10000))
+    }
+
+    @Test("a window end past the Int range saturates rather than trapping")
+    func saturates() throws {
+        // Far outside years 1-9999, where an answer is the implementation's;
+        // what matters is that the arithmetic holds at the edge of Int.
+        let far = Date(timeIntervalSince1970: 9.2233e15)
+        #expect(try DTRExp("20200101/2147483647W/2147483646W").covers(far))
+        #expect(addingSaturated(Int.max - 1, 2) == Int.max)
+        #expect(addingSaturated(Int.max - 2, 1) == Int.max - 1)
+        #expect(windowEndMs(NaiveDateTime(year: 9999, month: 12, day: 31)) == NaiveDateTime(year: 9999, month: 12, day: 31).naiveMs)
+        #expect(windowEndMs(NaiveDateTime(year: 10000, month: 1, day: 1)) == Int.max)
+    }
+}
