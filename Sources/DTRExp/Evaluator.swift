@@ -207,6 +207,9 @@ func cadenceCovers(_ c: Cadence, fields f: Fields, timeZone: TimeZone) -> Bool {
         let kEstimate = floorDiv(monthsApart, periodMonths)
         for k in (kEstimate - 1)...(kEstimate + 1) where k >= 0 {
             let start = c.anchor.addingMonthsConstrained(k * periodMonths)
+            // an occurrence starting past year 9999 lies beyond the timeline (and its
+            // millisecond count past Int): it covers nothing in the domain
+            if start.year > 9999 { continue }
             let startMs = start.naiveMs
             let endMs: Int
             switch c.durationUnit {

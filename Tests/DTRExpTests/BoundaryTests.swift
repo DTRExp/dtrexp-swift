@@ -123,7 +123,11 @@ struct CadenceEdgeTests {
                       ("20200101/2147483647M/2147483646M", "9999-12-31T23:59:59Z", true),
                       ("20200101/2147483647W/2147483646W", "9999-12-31T23:59:59Z", true),
                       ("20200101/2147483647m/2147483646m", "6103-01-24T02:05:00Z", true),
-                      ("20200101/2147483647m/2147483646m", "6103-01-24T02:06:00Z", false)])
+                      ("20200101/2147483647m/2147483646m", "6103-01-24T02:06:00Z", false),
+                      // the next occurrence starts past year 9999: it covers nothing, and never traps
+                      ("20200101/1000000000Y", "2021-06-01T00:00:00Z", false),
+                      ("20200101/1000000000Y", "2020-06-01T00:00:00Z", true),
+                      ("20200101/2147483647M", "9999-12-31T23:59:59Z", false)])
     func pastTheEdge(_ source: String, _ iso: String, _ expected: Bool) throws {
         #expect(try DTRExp(source).covers(at(iso)) == expected, "\(source) @ \(iso)")
     }

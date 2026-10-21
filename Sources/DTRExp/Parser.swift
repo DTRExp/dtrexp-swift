@@ -573,6 +573,12 @@ struct Parser {
         default:
             note("malformed time value — expected hh, hhmm or hhmmss[.sss]", at: start)
         }
+        if peek() == "." {
+            // a fraction follows only a 6-digit time value; elsewhere it is a rule error at its '.'
+            note("milliseconds follow only a 6-digit hhmmss time value", at: pos)
+            advance()
+            _ = readDigits()
+        }
         return TimeValue(boundaryMs: ms, unitMs: unit, is2400: is2400)
     }
 
